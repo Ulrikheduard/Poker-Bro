@@ -3,6 +3,7 @@ import {
   type GlossaryCategory, GLOSSARY_CATEGORIES, CATEGORY_TITLE, searchGlossary,
 } from '../../engine/glossary'
 import { Panel } from '../components/kit'
+import { IconChevron } from '../components/icons'
 import { Haptics } from '../haptics'
 
 /**
@@ -73,8 +74,8 @@ export function Glossary() {
                     <span className="name">{term.term}</span>
                     <span className="en">{term.english}</span>
                     <span style={{ flex: 1 }} />
-                    <span style={{ color: 'var(--faint)', fontSize: 'var(--f-xxs)' }}>
-                      {isOpen ? '▲' : '▼'}
+                    <span style={{ color: 'var(--faint)', display: 'flex' }}>
+                      <IconChevron open={isOpen} size={13} />
                     </span>
                   </button>
                   <span className={'def' + (isOpen ? '' : ' clamped')}>{term.definition}</span>

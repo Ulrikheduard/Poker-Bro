@@ -7,6 +7,7 @@ import { potOdds, requiredEquity, exactOutsEquity, quickEquity } from '../../eng
 import { Panel, Tile, Segmented } from '../components/kit'
 import { PlayingCard } from '../components/PlayingCard'
 import { Linked } from '../components/Term'
+import { IconCheck, IconCross } from '../components/icons'
 import { Haptics } from '../haptics'
 import { percent, chips, outsWord } from '../format'
 
@@ -176,8 +177,8 @@ export function Trainer() {
             <button key={index} type="button" className="option press" data-state={state}
               disabled={answered !== null} onClick={() => answer(index)}>
               {option}
-              {answered !== null && index === question.correct && <span>✓</span>}
-              {answered !== null && index === answered && index !== question.correct && <span>✕</span>}
+              {answered !== null && index === question.correct && <IconCheck />}
+              {answered !== null && index === answered && index !== question.correct && <IconCross />}
             </button>
           )
         })}

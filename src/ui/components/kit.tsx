@@ -1,4 +1,5 @@
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { IconChevron } from './icons'
 import { Haptics } from '../haptics'
 
 export function Panel({ title, subtitle, children, className }: {
@@ -76,9 +77,10 @@ export function Segmented<T extends string | number>({ options, value, onChange 
 
 /** Пояснение к расчёту: нужно редко, а места занимает много — поэтому свёрнуто. */
 export function Note({ title = 'Как это считается', children }: { title?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <details className="note" onToggle={() => Haptics.tap()}>
-      <summary>{title}</summary>
+    <details className="note" onToggle={(e) => { setOpen(e.currentTarget.open); Haptics.tap() }}>
+      <summary><IconChevron open={open} size={13} />{title}</summary>
       <p>{children}</p>
     </details>
   )
@@ -93,9 +95,16 @@ export function EquityBar({ equity, required }: { equity: number; required?: num
       : 'var(--bad)'
   return (
     <div className="bar">
-      <div className="fill" style={{ width: `${Math.max(equity * 100, 1)}%`, background: color }} />
+      <div
+        className="fill"
+        style={{ transform: `scaleX(${Math.max(equity, 0.01)})`, background: color }}
+      />
       {required != null && required > 0 && required < 1 && (
-        <div className="mark" style={{ left: `calc(${required * 100}% - 1px)` }} />
+        // Отметка едет вместе со слоем во всю ширину: проценты трансформации
+        // считаются от ширины слоя, то есть от всей дорожки.
+        <div className="mark-layer" style={{ transform: `translateX(${required * 100}%)` }}>
+          <i className="mark" />
+        </div>
       )}
     </div>
   )

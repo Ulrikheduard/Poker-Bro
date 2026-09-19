@@ -11,6 +11,7 @@ import { EquityClient } from '../../worker/client'
 import { Panel, Tile, Row, Chip, Segmented, Note, EquityBar } from '../components/kit'
 import { CardSlot, CardPicker } from '../components/PlayingCard'
 import { Linked } from '../components/Term'
+import { IconShuffle, IconReset, IconMinus, IconPlus } from '../components/icons'
 import { Haptics } from '../haptics'
 import { percent, decimal, chips, outsWord } from '../format'
 
@@ -143,12 +144,12 @@ export function Solver() {
           <Chip text={STREET_TITLE[street]} tint="var(--info)" />
           <span style={{ flex: 1 }} />
           {working && <Spinner />}
-          <button type="button" className="press" onClick={deal}
-            style={{ fontSize: 'var(--f-xs)', color: 'var(--faint)' }}>
+          <button type="button" className="press icon-btn" onClick={deal}>
+            <IconShuffle />
             Случайная
           </button>
-          <button type="button" className="press" onClick={reset} aria-label="Очистить"
-            style={{ fontSize: 'var(--f-xs)', color: 'var(--faint)' }}>
+          <button type="button" className="press icon-btn" onClick={reset}>
+            <IconReset />
             Сброс
           </button>
         </div>
@@ -367,17 +368,17 @@ function Stepper({ label, value, step, onChange }: {
     <div className="row">
       <span className="k">{label}</span>
       <div className="stepper">
-        <button type="button" className="press-s" aria-label="меньше" onClick={() => {
+        <button type="button" className="press-s hit" aria-label="Уменьшить" onClick={() => {
           // Упор на нуле: без отклика непонятно, кнопка не сработала или уже край.
           if (value <= 0) { Haptics.limit(); return }
           Haptics.tap()
           onChange((prev) => Math.max(0, prev - step))
-        }}>−</button>
+        }}><IconMinus /></button>
         <span className="value num">{chips(value)}</span>
-        <button type="button" className="press-s" aria-label="больше" onClick={() => {
+        <button type="button" className="press-s hit" aria-label="Увеличить" onClick={() => {
           Haptics.tap()
           onChange((prev) => prev + step)
-        }}>+</button>
+        }}><IconPlus /></button>
       </div>
     </div>
   )

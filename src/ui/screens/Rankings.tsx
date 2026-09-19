@@ -3,6 +3,7 @@ import { HAND_RANKINGS, oddsText } from '../../engine/rankings'
 import { Panel, Row, Note } from '../components/kit'
 import { PlayingCard } from '../components/PlayingCard'
 import { Linked } from '../components/Term'
+import { IconChevron, IconTip } from '../components/icons'
 import { Haptics } from '../haptics'
 import { decimal } from '../format'
 
@@ -52,8 +53,8 @@ export function Rankings() {
                   <PlayingCard key={card} card={card} width={38} dim={!entry.highlighted.includes(i)} />
                 ))}
                 <span style={{ flex: 1 }} />
-                <span style={{ color: 'var(--faint)', fontSize: 'var(--f-xs)' }}>
-                  {expanded ? '▲' : '▼'}
+                <span style={{ color: 'var(--faint)', display: 'flex' }}>
+                  <IconChevron open={expanded} />
                 </span>
               </span>
             </button>
@@ -64,7 +65,9 @@ export function Rankings() {
                   <Linked>{entry.explanation}</Linked>
                 </span>
                 <div className="highlight">
-                  <span style={{ color: 'var(--warn)' }}>◆</span>
+                  <span style={{ color: 'var(--warn)', display: 'flex', paddingTop: 2 }}>
+                    <IconTip />
+                  </span>
                   <span><Linked>{entry.beginnerNote}</Linked></span>
                 </div>
                 <Row label="Встречается" value={oddsText(entry.frequency)} tint="var(--muted)" />
