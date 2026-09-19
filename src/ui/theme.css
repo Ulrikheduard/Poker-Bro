@@ -1,0 +1,127 @@
+/*
+ * Палитра и шкалы — те же, что в Theme.swift нативной версии, один в один.
+ * Случайных значений в разметке быть не должно: через десяток экранов
+ * интерфейс расползается, и собрать его обратно уже нечем.
+ */
+:root {
+  /* Поверхности, от самой тёмной к самой светлой */
+  --bg: #0b0e13;
+  --surface: #151a21;
+  --raised: #1d242d;
+  --stroke: #2a3340;
+
+  /* Текст. Контраст считается по самой тёмной поверхности, а не по средней:
+     faint на bg даёт 5,1:1, на raised — 4,6:1, оба выше порога. */
+  --text: #eef2f6;
+  --muted: #a3aebc;
+  --faint: #7c8798;
+
+  /* Цветом говорят только деньги и решения */
+  --good: #35d08a;
+  --bad: #ff5e5e;
+  --warn: #ffb020;
+  --info: #5b9cff;
+
+  /* Карты */
+  --card-face: #f6f8fa;
+  --suit-red: #d92d2d;
+  --suit-black: #1a1f26;
+
+  /* Шкала отступов */
+  --xs: 4px;
+  --s: 8px;
+  --m: 12px;
+  --l: 16px;
+  --xl: 24px;
+  --xxl: 32px;
+
+  --radius: 14px;
+  --radius-s: 9px;
+  /* Минимальная цель нажатия */
+  --tap: 44px;
+
+  /* Шкала кеглей */
+  --f-xxs: 10px;
+  --f-xs: 11px;
+  --f-s: 13px;
+  --f-body: 15px;
+  --f-title: 17px;
+  --f-large: 22px;
+  --f-kpi: 34px;
+
+  --tabbar: 56px;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--f-body);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  /* Страница целиком не должна пружинить — пружинит только содержимое вкладки,
+     как в родном приложении. */
+  overscroll-behavior: none;
+  /* Выделение текста по долгому нажатию — это поведение страницы, а не приложения */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Убирает задержку 300 мс перед нажатием */
+  touch-action: manipulation;
+}
+
+/* Цифры в колонке должны стоять разряд в разряд */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Нажатие должно быть видно: без отклика кнопка на ощупь мёртвая —
+   палец опустился, а экран не шелохнулся. Сжатие читается мгновенно,
+   возврат спокойнее, иначе кнопка щёлкает дважды. */
+.press {
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out;
+}
+.press:active {
+  transform: scale(0.97);
+  opacity: 0.72;
+  transition-duration: 0.06s;
+}
+.press-s:active { transform: scale(0.9); }
+.press-xs:active { transform: scale(0.86); }
+
+input, textarea {
+  font: inherit;
+  color: inherit;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
