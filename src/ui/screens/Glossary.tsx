@@ -32,6 +32,13 @@ export function Glossary() {
 
   return (
     <>
+      <div className="intro">
+        <p className="quiet">
+          Сюда ведут все подчёркнутые слова из других разделов. Можно искать
+          и по русскому названию, и по английскому, и по словам внутри определения.
+        </p>
+      </div>
+
       <input
         className="search"
         type="search"

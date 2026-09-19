@@ -7,6 +7,7 @@ import { rangePercentage, parseHandClass, comboCount, isPair } from '../../engin
 import { PREFLOP_EQUITY } from '../../engine/strength'
 import { Panel, Tile, Segmented, Note } from '../components/kit'
 import { RangeGrid, RangeLegend } from '../components/RangeGrid'
+import { Linked } from '../components/Term'
 import { percent } from '../format'
 
 const FILL: Record<string, string> = {
@@ -40,7 +41,9 @@ export function Charts() {
             onChange={(p) => { setHero(p); setIndex(0); setSelected(null) }}
           />
         </div>
-        <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>{POSITION_HINT[hero]}</span>
+        <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>
+          <Linked>{POSITION_HINT[hero]}</Linked>
+        </span>
         {spots.length > 1 && (
           <div className="field">
             <span className="label">Ситуация</span>
@@ -55,7 +58,7 @@ export function Charts() {
         )}
       </Panel>
 
-      <Panel title={spot.title} subtitle="Нажмите на руку, чтобы увидеть разбор">
+      <Panel title={spot.title} subtitle="Зелёное — повышать, синее — уравнивать, серое — сбрасывать. Нажмите на руку, чтобы прочитать про неё">
         <RangeGrid
           color={(notation) => FILL[actionFor(spot, notation)]}
           selected={selected}
@@ -67,7 +70,9 @@ export function Charts() {
       {selected && <HandDetail notation={selected} action={actionFor(spot, selected)} />}
 
       <Panel>
-        <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>{spot.note}</span>
+        <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>
+          <Linked>{spot.note}</Linked>
+        </span>
         <Note title="Насколько этим чартам можно верить">
           {'Это справочные чарты для шестимаксового стола со стеками 100 больших блайндов, а не выход солвера, и выдавать их за него было бы нечестно.\n\n'
             + 'Настоящее GTO-решение смешивает действия с частотами: одна и та же рука в нём коллирует, скажем, в трети случаев и пасует в двух третях. Такое не запоминается и за столом не воспроизводится. Здесь у каждой руки один ответ — чарт близок к решению и, в отличие от него, укладывается в голове.\n\n'
@@ -109,13 +114,15 @@ function HandDetail({ notation, action }: { notation: string; action: 'raise' | 
           {ACTION_TITLE[action]}
         </b>
       </div>
-      <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>{description}</span>
+      <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>
+        <Linked>{description}</Linked>
+      </span>
       <div className="tiles">
-        <Tile label="Комбинаций" value={String(comboCount(hand))}
-          caption={isPair(hand) ? 'пар всего 6' : hand.suited ? 'одномастных 4' : 'разномастных 12'} />
+        <Tile label="Способов собрать" value={String(comboCount(hand))}
+          caption={isPair(hand) ? 'у любой пары их 6' : hand.suited ? 'у одномастной руки 4' : 'у разномастной 12'} />
         {equity != null && (
-          <Tile label="Против случайной" value={percent(equity, 0)} tint="var(--info)"
-            caption="эквити в олл-ине" />
+          <Tile label="Побед вслепую" value={percent(equity, 0)} tint="var(--info)"
+            caption="если сыграть до конца против случайных карт" />
         )}
       </div>
     </Panel>

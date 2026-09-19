@@ -119,13 +119,35 @@ describe('справочный материал', () => {
     expect(searchGlossary('абракадабра').length).toBe(0)
   })
 
-  it('комбинации: девять категорий, частоты дают 100 %', () => {
-    expect(HAND_RANKINGS.length).toBe(9)
-    const sum = HAND_RANKINGS.reduce((s, e) => s + e.frequency, 0)
-    expect(sum).toBeCloseTo(100, 2)
-    const combos = HAND_RANKINGS.reduce((s, e) => s + e.combinations, 0)
-    expect(combos).toBe(TOTAL_SEVEN_CARD_HANDS)
-    for (const e of HAND_RANKINGS) expect(e.example.length).toBe(5)
+  it('комбинации: десять строк, частоты дают 100 %, наборы сходятся до единицы', () => {
+    expect(HAND_RANKINGS.length).toBe(10)
+    expect(HAND_RANKINGS.reduce((s, e) => s + e.frequency, 0)).toBeCloseTo(100, 2)
+    // Сумма наборов обязана совпасть ровно: это проверка того, что флеш-рояль
+    // вычтен из стрит-флеша, а не добавлен сверху.
+    expect(HAND_RANKINGS.reduce((s, e) => s + e.combinations, 0)).toBe(TOTAL_SEVEN_CARD_HANDS)
+    for (const e of HAND_RANKINGS) expect(e.example.length, e.title).toBe(5)
+    // Идентификаторы уникальны: у флеш-рояля и стрит-флеша одна категория,
+    // и по ней строки склеились бы в одну.
+    expect(new Set(HAND_RANKINGS.map((e) => e.id)).size).toBe(10)
+  })
+
+  it('флеш-рояль стоит первым и вычтен из стрит-флеша', () => {
+    const royal = HAND_RANKINGS[0]
+    const straightFlush = HAND_RANKINGS[1]
+    expect(royal.id).toBe('royalFlush')
+    expect(royal.title).toBe('Флеш-рояль')
+    expect(royal.category).toBe(straightFlush.category)   // для оценщика это одно и то же
+    expect(royal.combinations).toBe(4_324)
+    expect(royal.combinations + straightFlush.combinations).toBe(41_584)
+    // Он самый редкий в списке
+    expect(royal.frequency).toBeLessThan(straightFlush.frequency)
+  })
+
+  it('список идёт строго от сильной комбинации к слабой', () => {
+    for (let i = 1; i < HAND_RANKINGS.length; i++) {
+      expect(HAND_RANKINGS[i].category, HAND_RANKINGS[i].title)
+        .toBeLessThanOrEqual(HAND_RANKINGS[i - 1].category)
+    }
   })
 })
 

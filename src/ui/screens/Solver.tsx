@@ -10,6 +10,7 @@ import {
 import { EquityClient } from '../../worker/client'
 import { Panel, Tile, Row, Chip, Segmented, Note, EquityBar } from '../components/kit'
 import { CardSlot, CardPicker } from '../components/PlayingCard'
+import { Linked } from '../components/Term'
 import { Haptics } from '../haptics'
 import { percent, decimal, chips, outsWord } from '../format'
 
@@ -214,8 +215,9 @@ export function Solver() {
           <span className="label">Рука оппонента</span>
           <Segmented options={VILLAINS} value={villain} onChange={setVillain} />
           <span className="hint">
-            «Любая» — это верхняя оценка неопределённости. Против тесного оппонента
-            ваше эквити всегда ниже, чем против случайных карт.
+            «Любая» значит, что оппоненту мы приписываем случайные карты. Если он
+            играет осторожно и заходит только с сильными руками — выберите «Топ 20 %»
+            или «Топ 10 %», и ваши шансы окажутся ниже. Так честнее.
           </span>
         </div>
       </Panel>
@@ -250,10 +252,16 @@ function Verdict({ analysis: a }: { analysis: SpotAnalysis }) {
           tint="var(--faint)" />
       </div>
       <div>{a.advice.headline}</div>
+      {/* Главное число словами. «Эквити 58 %» новичку не говорит ничего,
+          а «из 100 раздач выиграете 58» говорит сразу всё. */}
+      <div className="plain">
+        Если сыграть такую раздачу 100 раз, вы выиграете примерно{' '}
+        <b className="num">{Math.round(a.equity.equity * 100)}</b> из них.
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--xs)' }}>
         <EquityBar equity={a.equity.equity} required={need} />
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--s)', fontSize: 'var(--f-s)' }}>
-          <b className="num">Эквити {percent(a.equity.equity)}</b>
+          <b className="num"><Linked>Эквити</Linked> {percent(a.equity.equity)}</b>
           {need != null && <span className="num" style={{ color: 'var(--faint)' }}>· порог {percent(need)}</span>}
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 'var(--f-xxs)', color: 'var(--faint)' }}>
@@ -261,7 +269,9 @@ function Verdict({ analysis: a }: { analysis: SpotAnalysis }) {
           </span>
         </div>
       </div>
-      <span style={{ fontSize: 'var(--f-xs)', color: 'var(--warn)' }}>{a.assumption}</span>
+      <span style={{ fontSize: 'var(--f-xs)', color: 'var(--warn)' }}>
+        <Linked>{a.assumption}</Linked>
+      </span>
     </Panel>
   )
 }
@@ -272,23 +282,24 @@ function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
   return (
     <Panel>
       <div className="tiles">
-        <Tile label="Выигрыш" value={percent(a.equity.win)} tint="var(--good)"
-          caption={`ничья ${percent(a.equity.tie)}`} />
-        <Tile label="Рука сейчас" value={a.draw?.current.title ?? '—'} />
+        <Tile label="Побед" value={percent(a.equity.win)} tint="var(--good)"
+          caption={`плюс ничьи ${percent(a.equity.tie)}`} />
+        <Tile label="Что у вас сейчас" value={a.draw?.current.title ?? 'до флопа'} />
       </div>
       {a.potOdds.toCall > 0 && (
         <div className="tiles">
           <Tile label="Шансы банка" value={oddsRatio(a.potOdds)} tint="var(--info)"
             caption={`нужно ${percent(requiredEquity(a.potOdds))}`} />
-          <Tile label="EV колла" value={(ev >= 0 ? '+' : '') + chips(ev)}
-            tint={ev >= 0 ? 'var(--good)' : 'var(--bad)'} caption="в среднем за раздачу" />
+          <Tile label="Колл в среднем" value={(ev >= 0 ? '+' : '') + chips(ev)}
+            tint={ev >= 0 ? 'var(--good)' : 'var(--bad)'}
+            caption={ev >= 0 ? 'столько приносит за раздачу' : 'столько теряет за раздачу'} />
         </div>
       )}
       <div className="tiles">
-        <Tile label="SPR" value={decimal(a.spr)}
-          caption={a.spr < 3 ? 'фишки заедут за одну ставку' : a.spr > 10 ? 'глубоко' : 'средняя глубина'} />
-        <Tile label="Защита от 2/3 банка" value={percent(minimumDefence(freq), 0)}
-          tint="var(--muted)" caption="реже сбрасывать нельзя" />
+        <Tile label="Стек к банку" value={decimal(a.spr)}
+          caption={a.spr < 3 ? 'весь стек уедет за одну ставку' : a.spr > 10 ? 'глубоко' : 'средняя глубина'} />
+        <Tile label="Если он поставит 2/3 банка" value={percent(minimumDefence(freq), 0)}
+          tint="var(--muted)" caption="столько рук вам придётся не сбрасывать" />
       </div>
     </Panel>
   )
@@ -298,7 +309,7 @@ function Draws({ analysis: a }: { analysis: SpotAnalysis }) {
   const draw = a.draw!
   const toCome = a.street === 'flop' ? 2 : 1
   return (
-    <Panel title="Что доезжает" subtitle={draw.summary}>
+    <Panel title="Чем рука может улучшиться" subtitle={draw.summary}>
       {draw.draws.map((d) => (
         <div className="row" key={d.kind}>
           <span className="k" style={{ color: 'var(--text)' }}>{DRAW_TITLE[d.kind]}</span>
@@ -310,9 +321,9 @@ function Draws({ analysis: a }: { analysis: SpotAnalysis }) {
         </div>
       ))}
       <hr style={{ border: 0, borderTop: '1px solid var(--stroke)', margin: 0 }} />
-      <Row label="Всего аутов" value={`${draw.totalOuts} из ${draw.unseen}`} />
+      <Row label="Всего помогает карт" value={`${draw.totalOuts} из ${draw.unseen}`} />
       {draw.boardPairing > 0 && (
-        <Row label="Доска спарится" value={`${draw.boardPairing} карт`} tint="var(--faint)" />
+        <Row label="Спарят доску (не в счёт)" value={`${draw.boardPairing} карт`} tint="var(--faint)" />
       )}
       <Note>
         {'Ауты пересчитаны по колоде, а не взяты из таблицы: каждая невидимая карта подставляется к вашей руке, и проверяется, стала ли рука лучше. Карта, закрывающая и стрит, и флеш, засчитана один раз — по старшей из двух рук.\n\n'
@@ -324,10 +335,13 @@ function Draws({ analysis: a }: { analysis: SpotAnalysis }) {
 }
 
 function Reasons({ analysis: a }: { analysis: SpotAnalysis }) {
+  // Один счётчик на весь список: причины — это несколько строк, но читаются
+  // они как один блок, и «колл», подчёркнутый в каждой второй, только мешает.
+  const seen = new Set<string>()
   return (
     <Panel title="Почему так">
       <ul className="reasons">
-        {a.advice.reasons.map((reason, i) => <li key={i}>{reason}</li>)}
+        {a.advice.reasons.map((reason, i) => <li key={i}><Linked seen={seen}>{reason}</Linked></li>)}
       </ul>
       <Note title="Чему здесь можно верить">
         {'Эквити, шансы банка, ауты и частоты защиты — это арифметика: числа не зависят ни от оппонента, ни от манеры игры, и спорить с ними нельзя.\n\n'

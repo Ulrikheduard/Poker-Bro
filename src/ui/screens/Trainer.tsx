@@ -6,6 +6,7 @@ import { OPEN_RAISE, FACING_OPEN, actionFor, ACTION_TITLE, POSITION_HINT } from 
 import { potOdds, requiredEquity, exactOutsEquity, quickEquity } from '../../engine/odds'
 import { Panel, Tile, Segmented } from '../components/kit'
 import { PlayingCard } from '../components/PlayingCard'
+import { Linked } from '../components/Term'
 import { Haptics } from '../haptics'
 import { percent, chips, outsWord } from '../format'
 
@@ -18,9 +19,9 @@ import { percent, chips, outsWord } from '../format'
 type Mode = 'showdown' | 'preflop' | 'odds'
 
 const MODES: Array<{ value: Mode; label: string; hint: string }> = [
-  { value: 'showdown', label: 'Вскрытие', hint: 'Две руки на одной доске. Какая выигрывает?' },
-  { value: 'preflop', label: 'Префлоп', hint: 'Позиция, ситуация и рука. Что делать?' },
-  { value: 'odds', label: 'Шансы', hint: 'Хватает ли шансов банка на колл?' },
+  { value: 'showdown', label: 'Кто сильнее', hint: 'Две руки на одной доске. Какая из них выигрывает?' },
+  { value: 'preflop', label: 'До флопа', hint: 'Ваша позиция, ситуация за столом и две карты. Что делать?' },
+  { value: 'odds', label: 'Считать', hint: 'Выгодно ли уравнять ставку? Сравните шансы банка со своими шансами попасть.' },
 ]
 
 interface Question {
@@ -145,7 +146,7 @@ export function Trainer() {
 
       <Panel>
         <b style={{ fontSize: 'var(--f-title)' }}>{question.prompt}</b>
-        {question.detail && <span className="hint">{question.detail}</span>}
+        {question.detail && <span className="hint"><Linked>{question.detail}</Linked></span>}
         {question.board.length > 0 && (
           <div className="field">
             <span className="label">Стол</span>
@@ -188,7 +189,7 @@ export function Trainer() {
             {answered === question.correct ? 'Верно' : 'Не угадали'}
           </b>
           <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)', whiteSpace: 'pre-line' }}>
-            {question.explanation}
+            <Linked>{question.explanation}</Linked>
           </span>
           <button type="button" className="primary press"
             onClick={() => { Haptics.tap(); next(mode) }}>Дальше</button>

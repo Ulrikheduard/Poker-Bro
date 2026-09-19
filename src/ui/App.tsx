@@ -6,6 +6,7 @@ import { Glossary } from './screens/Glossary'
 import { Trainer } from './screens/Trainer'
 import { IconSolver, IconSpade, IconGrid, IconBook, IconTarget } from './components/icons'
 import { Haptics } from './haptics'
+import { GlossaryProvider } from './components/Term'
 
 const TABS = [
   { id: 'solver', title: 'Разбор', Icon: IconSolver, Screen: Solver },
@@ -33,50 +34,52 @@ export function App() {
   }, [tab])
 
   return (
-    <div className="app">
-      <header className={'header' + (scrolled ? ' scrolled' : '')}>
-        <h1>{TABS[tab].title}</h1>
-      </header>
+    <GlossaryProvider>
+      <div className="app">
+        <header className={'header' + (scrolled ? ' scrolled' : '')}>
+          <h1>{TABS[tab].title}</h1>
+        </header>
 
-      <div
-        className="scroll"
-        ref={scrollRef}
-        onScroll={(e) => {
-          const top = e.currentTarget.scrollTop
-          offsets.current[tab] = top
-          const next = top > 4
-          setScrolled((was) => (was === next ? was : next))
-        }}
-      >
-        <main className="content">
-          <Current />
-        </main>
+        <div
+          className="scroll"
+          ref={scrollRef}
+          onScroll={(e) => {
+            const top = e.currentTarget.scrollTop
+            offsets.current[tab] = top
+            const next = top > 4
+            setScrolled((was) => (was === next ? was : next))
+          }}
+        >
+          <main className="content">
+            <Current />
+          </main>
+        </div>
+
+        <nav className="tabbar" role="tablist">
+          {TABS.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === index}
+              onClick={() => {
+                if (tab === index) {
+                  // Повторное нажатие по активной вкладке возвращает наверх —
+                  // так же, как в родных приложениях.
+                  scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+                  offsets.current[index] = 0
+                  return
+                }
+                Haptics.select()
+                setTab(index)
+              }}
+            >
+              <item.Icon />
+              {item.title}
+            </button>
+          ))}
+        </nav>
       </div>
-
-      <nav className="tabbar" role="tablist">
-        {TABS.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === index}
-            onClick={() => {
-              if (tab === index) {
-                // Повторное нажатие по активной вкладке возвращает наверх —
-                // так же, как в родных приложениях.
-                scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-                offsets.current[index] = 0
-                return
-              }
-              Haptics.select()
-              setTab(index)
-            }}
-          >
-            <item.Icon />
-            {item.title}
-          </button>
-        ))}
-      </nav>
-    </div>
+    </GlossaryProvider>
   )
 }

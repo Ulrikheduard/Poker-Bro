@@ -158,6 +158,6 @@ function titleFor(category: HandCategory, r: number[]): string {
     case TRIPS: return `Сет ${many(r[0])}`
     case TWO_PAIR: return `Две пары, ${many(r[0])} и ${many(r[1])}`
     case PAIR: return `Пара ${many(r[0])}`
-    default: return `Старшая ${one(r[0])}`
+    default: return `Старшая карта — ${one(r[0])}`
   }
 }

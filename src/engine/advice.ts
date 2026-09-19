@@ -69,6 +69,15 @@ export interface SpotAnalysis {
 
 const pct = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',') + ' %'
 const percent = (v: number, digits = 1) => pct(v * 100, digits)
+/** «6 карт», «2 карты», «21 карта» — русские окончания. */
+const outsEnding = (n: number): string => {
+  const last = n % 10, tens = n % 100
+  if (tens >= 11 && tens <= 14) return ''
+  if (last === 1) return 'а'
+  if (last >= 2 && last <= 4) return 'ы'
+  return ''
+}
+
 const chips = (v: number) => {
   const r = Math.round(v * 10) / 10
   return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',')
@@ -91,11 +100,11 @@ export function analyseSpot(input: SpotInput, iterations = 80_000): SpotAnalysis
 
   let assumption: string
   if (input.opponentRange) {
-    assumption = `Против диапазона ${compactRange(input.opponentRange)} — ${Math.round(rangePercentage(input.opponentRange))} % рук`
+    assumption = `Считаем против ${Math.round(rangePercentage(input.opponentRange))} % лучших рук: ${compactRange(input.opponentRange)}`
   } else if (input.opponents === 1) {
-    assumption = 'Против одной случайной руки — верхняя оценка неопределённости'
+    assumption = 'Считаем против случайных карт. Осторожный игрок держит руки сильнее — против него ваши шансы будут ниже'
   } else {
-    assumption = `Против ${input.opponents} случайных рук`
+    assumption = `Считаем против ${input.opponents} оппонентов со случайными картами`
   }
 
   const advice = decide(input, equity, odds, draw, texture, street, spr)
@@ -113,16 +122,16 @@ function decide(
   if (odds.toCall > 0) {
     const need = requiredEquity(odds)
     const ev = callEV(odds, e)
-    reasons.push(`Шансы банка ${oddsRatio(odds)}: колл окупается от ${percent(need)} эквити`)
-    reasons.push(`Ваше эквити ${percent(e)} — ${e >= need ? 'выше' : 'ниже'} порога на ${percent(Math.abs(e - need))}`)
-    reasons.push(`Матожидание колла ${ev >= 0 ? '+' : ''}${chips(ev)} в банк ${chips(odds.pot)}`)
+    reasons.push(`Шансы банка ${oddsRatio(odds)} — колл окупается, если такая раздача выигрывается хотя бы в ${percent(need)} случаев`)
+    reasons.push(`Вы выигрываете в ${percent(e)} случаев: это на ${percent(Math.abs(e - need))} ${e >= need ? 'выше' : 'ниже'} порога`)
+    reasons.push(`В среднем такой колл приносит ${ev >= 0 ? '+' : ''}${chips(ev)} за раздачу`)
 
     if (draw && street !== 'river' && draw.strongOuts > 0) {
       const toCome = street === 'flop' ? 2 : 1
       const exact = exactOutsEquity(draw.totalOuts, draw.unseen, toCome)
       reasons.push(
-        `Аутов ${draw.totalOuts} из ${draw.unseen} — попадание ${percent(exact)}, ` +
-        `по правилу ${toCome === 2 ? '4' : '2'} было бы ${percent(quickEquity(draw.totalOuts, toCome))}`,
+        `Руку улучшают ${draw.totalOuts} карт${outsEnding(draw.totalOuts)} из ${draw.unseen} — это ${percent(exact)}. ` +
+        `По правилу ${toCome === 2 ? '4' : '2'} в уме вышло бы ${percent(quickEquity(draw.totalOuts, toCome))}`,
       )
     }
 
@@ -131,38 +140,38 @@ function decide(
     if (e >= 0.68) {
       return {
         action: 'raise', strength: e >= 0.78 ? 'clear' : 'close',
-        headline: `Рейз на значение — ${percent(e)} против ${percent(need)} требуемых`,
+        headline: `Рейз: вы впереди в ${percent(e)} случаев, а хватило бы ${percent(need)}`,
         reasons, sizing: (texture?.wetness ?? 0.3) > 0.5 ? 0.75 : 0.6,
       }
     }
     if (e >= need + 0.05) {
       return {
         action: 'call', strength: 'clear',
-        headline: `Колл — эквити с запасом ${percent(e - need)}`,
+        headline: `Колл: шансов на ${percent(e - need)} больше, чем нужно`,
         reasons, sizing: null,
       }
     }
     if (e >= need) {
       return {
         action: 'call', strength: 'marginal',
-        headline: `Колл на грани — эквити всего на ${percent(e - need)} выше порога`,
-        reasons: [...reasons, 'На грани решает не расчёт, а импл-оддсы и то, насколько читаем оппонент'],
+        headline: `Колл на грани: всего на ${percent(e - need)} выше порога`,
+        reasons: [...reasons, 'Здесь расчёт уже почти ничего не решает — важнее импл-оддсы и то, насколько понятен оппонент'],
         sizing: null,
       }
     }
     // Не хватает сейчас — но если стеки глубокие, добор может окупить колл.
     const needed = impliedOddsNeeded(odds, e)
     if (street !== 'river' && needed > 0 && needed <= input.effectiveStack * 0.6 && draw && draw.strongOuts >= 8) {
-      reasons.push(`Чтобы колл вышел в ноль, на следующих улицах нужно добрать ещё ${chips(needed)}`)
+      reasons.push(`Прямых шансов не хватает, но если доедете — на следующих улицах надо выиграть ещё ${chips(needed)}, и колл выйдет в ноль`)
       return {
         action: 'call', strength: 'marginal',
-        headline: 'Колл только на импл-оддсах — прямых шансов не хватает',
+        headline: 'Колл в расчёте на будущие ставки',
         reasons, sizing: null,
       }
     }
     return {
       action: 'fold', strength: e < need - 0.1 ? 'clear' : 'close',
-      headline: `Фолд — не хватает ${percent(need - e)} эквити`,
+      headline: `Фолд: не хватает ${percent(need - e)} до окупаемости`,
       reasons, sizing: null,
     }
   }
@@ -171,40 +180,44 @@ function decide(
   const wetness = texture?.wetness ?? 0.3
   const size = wetness > 0.55 ? 0.75 : wetness > 0.25 ? 0.6 : 0.33
   const freq = frequencies(odds.pot * size, odds.pot)
-  reasons.push(`Эквити ${percent(e)} ${input.opponents === 1 ? 'против одного оппонента' : `против ${input.opponents} оппонентов`}`)
-  if (texture) reasons.push(`Доска ${texture.summary} — размер ${Math.round(size * 100)} % банка`)
-  reasons.push(`Ставка ${Math.round(size * 100)} % требует ${percent(bluffBreakEven(freq))} фолдов, чтобы блеф окупился сам`)
-  reasons.push(`Оппонент обязан защищать ${percent(minimumDefence(freq))} диапазона, иначе ставка любыми двумя картами прибыльна`)
+  reasons.push(`Вы выигрываете в ${percent(e)} случаев ${input.opponents === 1 ? 'против одного оппонента' : `против ${input.opponents} оппонентов`}`)
+  if (texture) reasons.push(`Доска ${texture.summary} — под неё подходит ставка в ${Math.round(size * 100)} % банка`)
+  reasons.push(`Такая ставка окупится даже блефом, если оппонент сбросит хотя бы в ${percent(bluffBreakEven(freq))} случаев`)
+  reasons.push(`Чтобы ваши ставки не стали выгодными с любыми картами, оппоненту нужно продолжать с ${percent(minimumDefence(freq))} своих рук`)
   if (street === 'river') {
-    reasons.push(`Баланс на ривере: блеф к значению ${bluffToValue(freq)} — это ${percent(bluffShare(freq))} блефа в ставке`)
+    reasons.push(`Баланс на ривере: на каждую ставку с сильной рукой — ${bluffToValue(freq)} блефа, то есть ${percent(bluffShare(freq))} ваших ставок здесь должны быть блефом`)
   }
   if (spr > 0) {
-    const hint = spr < 3 ? 'стек заезжает в банк за одну-две ставки'
-      : spr > 10 ? 'глубоко, играем на импл-оддсы' : 'средняя глубина'
-    reasons.push(`SPR ${spr.toFixed(1).replace('.', ',')} — ${hint}`)
+    const hint = spr < 3 ? 'весь стек уедет в банк за одну-две ставки'
+      : spr > 10 ? 'глубоко — есть смысл играть на импл-оддсы' : 'средняя глубина'
+    reasons.push(`Стек больше банка в ${spr.toFixed(1).replace('.', ',')} раза (SPR) — ${hint}`)
   }
 
   if (e >= 0.65) {
-    return { action: 'bet', strength: 'clear', headline: `Ставка на значение — ${percent(e)}`, reasons, sizing: size }
+    return {
+      action: 'bet', strength: 'clear',
+      headline: `Ставка: вы впереди в ${percent(e)} случаев, пора забирать деньги`,
+      reasons, sizing: size,
+    }
   }
   if (draw && draw.strongOuts >= 8 && street !== 'river') {
     return {
       action: 'bet', strength: 'close',
-      headline: `Полублеф — ${draw.summary}`,
-      reasons: [...reasons, 'Ставка выигрывает двумя способами: оппонент сбрасывает сейчас или вы доезжаете позже'],
+      headline: `Полублеф: у вас ${draw.summary}`,
+      reasons: [...reasons, 'Такая ставка выигрывает двумя способами: оппонент сбросит сейчас — или вы доедете позже'],
       sizing: size,
     }
   }
   if (e >= 0.5) {
     return {
       action: 'check', strength: 'close',
-      headline: 'Чек — рука впереди, но платить будут только лучшие руки',
+      headline: 'Чек: рука неплохая, но заплатят вам в основном те, кто сильнее',
       reasons, sizing: null,
     }
   }
   return {
     action: 'check', strength: 'clear',
-    headline: `Чек — ${percent(e)} эквити не хватает на ставку`,
+    headline: `Чек: с ${percent(e)} ставить рано`,
     reasons, sizing: null,
   }
 }

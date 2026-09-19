@@ -43,18 +43,21 @@
   flex-direction: column;
   gap: var(--l);
   padding: var(--l);
-  padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + var(--xl));
+  /* Под панель место больше не резервируем — она занимает своё сама. */
+  padding-bottom: var(--xl);
   max-width: 560px;
   margin: 0 auto;
 }
 
 /* ── Нижняя панель ─────────────────────────────────────────────────────── */
 
+/* Панель — обычный элемент потока, а не `position: fixed`. На iPhone
+   фиксированный элемент позиционируется относительно раскладочного окна,
+   а оно не совпадает с видимым: панель вставала выше настоящего низа,
+   и под ней оставалась пустая полоса. В колонке высотой 100dvh низ —
+   это низ, без оговорок. */
 .tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: none;
   z-index: 30;
   display: flex;
   padding-bottom: env(safe-area-inset-bottom);
@@ -420,3 +423,60 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg) } }
+
+/* ── Термины со ссылкой в словарь ──────────────────────────────────────── */
+
+/* Пунктир, а не сплошное подчёркивание и не цвет: цветом в этом приложении
+   говорят только деньги, и раскрасить половину текста значило бы сломать
+   это правило ради подсказки. */
+.term-link {
+  display: inline;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+  padding: 0;
+  border-radius: 3px;
+}
+.term-link:active {
+  background: color-mix(in srgb, var(--info) 22%, transparent);
+  text-decoration-color: var(--info);
+}
+
+.term-sheet { display: flex; flex-direction: column; gap: var(--m); }
+.term-sheet-head { display: flex; align-items: baseline; gap: var(--s); flex-wrap: wrap; }
+.term-sheet-head b { font-size: var(--f-large); }
+.term-sheet-head .en { font-size: var(--f-s); color: var(--faint); }
+.term-sheet .def { margin: 0; font-size: var(--f-body); color: var(--text); }
+.term-sheet .example {
+  margin: 0;
+  font-size: var(--f-s);
+  color: var(--muted);
+  border-left: 2px solid var(--info);
+  padding: var(--xs) 0 var(--xs) var(--m);
+}
+
+/* ── Вводный текст раздела ─────────────────────────────────────────────── */
+
+/* Без панели: рамка вокруг подписи к списку выглядит как ещё один пункт
+   списка, а это не он. */
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s);
+  padding: 0 var(--xs);
+}
+.intro p { margin: 0; font-size: var(--f-body); }
+.intro .quiet { font-size: var(--f-s); color: var(--muted); }
+
+/* Расшифровка главного числа обычными словами — то, что читают первым. */
+.plain {
+  font-size: var(--f-body);
+  color: var(--text);
+  background: var(--raised);
+  border-radius: var(--radius-s);
+  padding: var(--s) var(--m);
+}
+.plain b { font-size: var(--f-title); }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { HAND_RANKINGS, oddsText } from '../../engine/rankings'
 import { Panel, Row, Note } from '../components/kit'
 import { PlayingCard } from '../components/PlayingCard'
+import { Linked } from '../components/Term'
 import { Haptics } from '../haptics'
 import { decimal } from '../format'
 
@@ -11,27 +12,30 @@ import { decimal } from '../format'
  * а не пятикарточные числа из учебников.
  */
 export function Rankings() {
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
 
   return (
     <>
-      <Panel>
-        <b>Комбинация собирается из любых пяти карт среди ваших двух и пяти общих.</b>
-        <span className="hint">
-          Проценты справа — как часто такая рука получается к риверу.
-          Сумма даёт 100 %: каждая раздача попадает ровно в одну строку.
-        </span>
-      </Panel>
+      {/* Вводный текст намеренно без панели: панель — это карточка со своим
+          содержимым, а здесь просто подпись к списку, и рамка вокруг неё
+          делает вид, будто это ещё один пункт. */}
+      <div className="intro">
+        <p>Рука — это <b>лучшие пять карт</b> из семи: двух ваших и пяти общих на столе.</p>
+        <p className="quiet">
+          Список идёт от самой сильной комбинации к самой слабой. Проценты справа
+          показывают, как часто такая рука получается к концу раздачи.
+        </p>
+      </div>
 
       {HAND_RANKINGS.map((entry, index) => {
-        const expanded = open === entry.category
+        const expanded = open === entry.id
         return (
-          <Panel key={entry.category}>
+          <Panel key={entry.id}>
             <button
               type="button"
               className="press"
               style={{ display: 'flex', flexDirection: 'column', gap: 'var(--m)', textAlign: 'left' }}
-              onClick={() => { Haptics.tap(); setOpen(expanded ? null : entry.category) }}
+              onClick={() => { Haptics.tap(); setOpen(expanded ? null : entry.id) }}
             >
               <span style={{ display: 'flex', alignItems: 'baseline', width: '100%', gap: 'var(--s)' }}>
                 <span className="num" style={{ color: 'var(--faint)', fontSize: 'var(--f-s)', width: 18 }}>
@@ -40,7 +44,7 @@ export function Rankings() {
                 <b style={{ fontSize: 'var(--f-title)' }}>{entry.title}</b>
                 <span style={{ flex: 1 }} />
                 <span className="num" style={{ color: 'var(--info)', fontWeight: 600 }}>
-                  {decimal(entry.frequency, entry.frequency < 1 ? 2 : 1)} %
+                  {decimal(entry.frequency, entry.frequency < 0.1 ? 3 : entry.frequency < 1 ? 2 : 1)} %
                 </span>
               </span>
               <span className="cards-row" style={{ alignItems: 'center', width: '100%' }}>
@@ -56,10 +60,12 @@ export function Rankings() {
 
             {expanded && (
               <div className="appear" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s)' }}>
-                <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>{entry.explanation}</span>
+                <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>
+                  <Linked>{entry.explanation}</Linked>
+                </span>
                 <div className="highlight">
                   <span style={{ color: 'var(--warn)' }}>◆</span>
-                  <span>{entry.beginnerNote}</span>
+                  <span><Linked>{entry.beginnerNote}</Linked></span>
                 </div>
                 <Row label="Встречается" value={oddsText(entry.frequency)} tint="var(--muted)" />
                 <Row label="Наборов из семи карт"
@@ -72,8 +78,9 @@ export function Rankings() {
 
       <Panel>
         <Note title="Откуда взяты проценты">
-          {'Перебраны все 133 784 560 наборов из семи карт, и каждый отнесён к своей категории тем же оценщиком, который считает раздачи в разделе «Разбор». Числа не переписаны из справочника.\n\n'
-            + 'Пятикарточные проценты, которые обычно печатают в учебниках, здесь не подходят: с семью картами две пары встречаются вчетверо чаще, а рука без пары — втрое реже.'}
+          {'Перебраны все 133 784 560 наборов из семи карт, и каждый отнесён к своей комбинации тем же оценщиком, который считает раздачи в разделе «Разбор». Числа не переписаны из справочника.\n\n'
+            + 'Проценты в учебниках обычно считают для пяти карт — здесь они не подходят: с семью картами две пары встречаются вчетверо чаще, а рука без пары втрое реже.\n\n'
+            + 'Флеш-рояль стоит отдельной строкой, хотя формально это просто самый старший стрит-флеш.'}
         </Note>
       </Panel>
     </>
