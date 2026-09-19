@@ -1,4 +1,5 @@
 import { type Card } from './cards'
+import { evaluate } from './evaluator'
 import { type EquityResult, type OpponentModel, calculateEquity } from './equity'
 import { type DrawAnalysis, analyseDraws } from './draws'
 import { type BoardTexture, readBoard } from './texture'
@@ -65,6 +66,13 @@ export interface SpotAnalysis {
   /** Отношение стека к банку. Ниже трёх фишки заезжают в банк почти всегда. */
   spr: number
   assumption: string
+  /**
+   * Лучшая пятёрка целиком лежит на столе, и карты в руке к ней ничего
+   * не добавляют. Тогда у всех, кто дошёл до вскрытия, одна и та же рука,
+   * и банк делится. Определяется точно, а не по высокой доле ничьих:
+   * сравниваем силу доски с силой руки вместе с доской.
+   */
+  boardPlays: boolean
 }
 
 const pct = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',') + ' %'
@@ -97,6 +105,8 @@ export function analyseSpot(input: SpotInput, iterations = 80_000): SpotAnalysis
   const texture = readBoard(input.board)
   const street = streetFor(input.board.length)
   const spr = input.pot > 0 ? input.effectiveStack / input.pot : 0
+  const boardPlays = input.board.length === 5
+    && evaluate(input.board).score === evaluate([...input.hole, ...input.board]).score
 
   let assumption: string
   if (input.opponentRange) {
@@ -107,16 +117,25 @@ export function analyseSpot(input: SpotInput, iterations = 80_000): SpotAnalysis
     assumption = `Считаем против ${input.opponents} оппонентов со случайными картами`
   }
 
-  const advice = decide(input, equity, odds, draw, texture, street, spr)
-  return { equity, potOdds: odds, draw, texture, advice, street, spr, assumption }
+  const advice = decide(input, equity, odds, draw, texture, street, spr, boardPlays)
+  return { equity, potOdds: odds, draw, texture, advice, street, spr, assumption, boardPlays }
 }
 
 function decide(
   input: SpotInput, equity: EquityResult, odds: PotOdds,
   draw: DrawAnalysis | null, texture: BoardTexture | null, street: Street, spr: number,
+  boardPlays: boolean,
 ): Advice {
   const e = equity.equity
   const reasons: string[] = []
+
+  // Про делёжку говорим первой строкой: это не оттенок расчёта, а другой
+  // характер раздачи, и объяснять его после шансов банка поздно.
+  if (boardPlays) {
+    reasons.push('Играет доска: лучшие пять карт лежат на столе, и ваши две ничего к ним не добавляют — такая же рука у всех, кто дойдёт до вскрытия')
+  } else if (equity.tie >= 0.05) {
+    reasons.push(`Банк делится в ${percent(equity.tie)} случаев: руки равны по силе, а масть в холдеме ничего не решает`)
+  }
 
   // ── Перед нами поставили: решает арифметика, а не ощущение ──
   if (odds.toCall > 0) {
@@ -177,6 +196,15 @@ function decide(
   }
 
   // ── Перед нами не ставили ──
+  if (boardPlays && equity.tie >= 0.95) {
+    return {
+      action: 'check', strength: 'clear',
+      headline: 'Чек: банк почти наверняка разделится',
+      reasons: [...reasons, 'Ставить не с чем и не за чем: улучшить руку нельзя, а заплатят вам только с рукой сильнее — то есть никогда'],
+      sizing: null,
+    }
+  }
+
   const wetness = texture?.wetness ?? 0.3
   const size = wetness > 0.55 ? 0.75 : wetness > 0.25 ? 0.6 : 0.33
   const freq = frequencies(odds.pot * size, odds.pot)

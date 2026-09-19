@@ -108,15 +108,19 @@ describe('чтение доски', () => {
 })
 
 describe('справочный материал', () => {
-  it('словарь: 70 терминов, идентификаторы уникальны', () => {
-    expect(GLOSSARY.length).toBe(70)
-    expect(new Set(GLOSSARY.map((t) => t.id)).size).toBe(70)
+  it('словарь: 73 термина, идентификаторы уникальны', () => {
+    expect(GLOSSARY.length).toBe(73)
+    expect(new Set(GLOSSARY.map((t) => t.id)).size).toBe(73)
     for (const t of GLOSSARY) {
       expect(t.definition.length, t.term).toBeGreaterThan(20)
       expect(t.example.length, t.term).toBeGreaterThan(10)
     }
     expect(searchGlossary('флоп').length).toBeGreaterThan(0)
     expect(searchGlossary('абракадабра').length).toBe(0)
+    // Делёжка банка объяснена: по этим словам новичок и будет искать
+    expect(searchGlossary('сплит').length).toBeGreaterThan(0)
+    expect(searchGlossary('делится').length).toBeGreaterThan(0)
+    expect(searchGlossary('доска играет').length).toBeGreaterThan(0)
   })
 
   it('комбинации: десять строк, частоты дают 100 %, наборы сходятся до единицы', () => {

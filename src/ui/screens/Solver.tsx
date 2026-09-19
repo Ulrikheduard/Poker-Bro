@@ -13,7 +13,7 @@ import { CardSlot, CardPicker } from '../components/PlayingCard'
 import { Linked } from '../components/Term'
 import { IconShuffle, IconReset, IconMinus, IconPlus } from '../components/icons'
 import { Haptics } from '../haptics'
-import { percent, decimal, chips, outsWord } from '../format'
+import { percent, decimal, chips, outsWord, plural } from '../format'
 
 const VILLAINS = [
   { value: 0, label: 'Любая' },
@@ -253,12 +253,7 @@ function Verdict({ analysis: a }: { analysis: SpotAnalysis }) {
           tint="var(--faint)" />
       </div>
       <div>{a.advice.headline}</div>
-      {/* Главное число словами. «Эквити 58 %» новичку не говорит ничего,
-          а «из 100 раздач выиграете 58» говорит сразу всё. */}
-      <div className="plain">
-        Если сыграть такую раздачу 100 раз, вы выиграете примерно{' '}
-        <b className="num">{Math.round(a.equity.equity * 100)}</b> из них.
-      </div>
+      <Outcomes equity={a.equity} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--xs)' }}>
         <EquityBar equity={a.equity.equity} required={need} />
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--s)', fontSize: 'var(--f-s)' }}>
@@ -277,6 +272,39 @@ function Verdict({ analysis: a }: { analysis: SpotAnalysis }) {
   )
 }
 
+/**
+ * Главное число словами. «Эквити 58 %» новичку не говорит ничего,
+ * а «из 100 раздач выиграете 58» говорит сразу всё.
+ *
+ * Исходов три, а не два: банк ещё и делится. Проценты округляются так, чтобы
+ * в сумме вышло ровно сто — иначе рядом стоят «67, 31 и 3», и читатель
+ * справедливо решает, что мы не умеем считать.
+ */
+function Outcomes({ equity }: { equity: SpotAnalysis['equity'] }) {
+  const win = Math.round(equity.win * 100)
+  const tie = Math.round(equity.tie * 100)
+  const lose = Math.max(100 - win - tie, 0)
+  const splits = equity.tie >= 0.005
+
+  return (
+    <div className="plain">
+      <p>
+        Если сыграть такую раздачу 100 раз, вы выиграете примерно{' '}
+        <b className="num">{win}</b>
+        {splits && <>, ещё <b className="num">{tie}</b> {plural(tie, ['раз', 'раза', 'раз'])} разделите банк поровну</>}
+        {' '}и проиграете <b className="num">{lose}</b>.
+      </p>
+      {splits && (
+        <Note title="Когда банк делится">
+          {'Масть в холдеме не решает ничего. Если у вас и у оппонента лучшие пять карт равны по силе, спорить больше нечем — банк делится поровну, это называют сплитом.\n\n'
+            + 'Чаще всего так выходит, когда играет доска: лучшая пятёрка целиком лежит на столе, и ваши две карты ничего к ней не добавляют. Второй частый случай — одинаковый кикер: у обоих пара тузов с королём.\n\n'
+            + 'Если равных рук трое, каждому достаётся треть. В расчёте это учтено: ничья на троих приносит треть банка, а не половину. Нечётная фишка по правилам большинства залов уходит игроку слева от дилера.'}
+        </Note>
+      )}
+    </div>
+  )
+}
+
 function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
   const ev = callEV(a.potOdds, a.equity.equity)
   const freq = frequencies(a.potOdds.pot * 0.66, a.potOdds.pot)
@@ -284,8 +312,15 @@ function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
     <Panel>
       <div className="tiles">
         <Tile label="Побед" value={percent(a.equity.win)} tint="var(--good)"
-          caption={`плюс ничьи ${percent(a.equity.tie)}`} />
+          caption={`поражений ${percent(a.equity.lose)}`} />
+        <Tile label="Банк делится" value={percent(a.equity.tie)}
+          tint={a.equity.tie >= 0.005 ? 'var(--info)' : 'var(--faint)'}
+          caption={a.equity.tie >= 0.005 ? 'сплит — руки равны' : 'здесь почти исключено'} />
+      </div>
+      <div className="tiles">
         <Tile label="Что у вас сейчас" value={a.draw?.current.title ?? 'до флопа'} />
+        <Tile label="Стек к банку" value={decimal(a.spr)}
+          caption={a.spr < 3 ? 'весь стек уедет за одну ставку' : a.spr > 10 ? 'глубоко' : 'средняя глубина'} />
       </div>
       {a.potOdds.toCall > 0 && (
         <div className="tiles">
@@ -297,8 +332,6 @@ function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
         </div>
       )}
       <div className="tiles">
-        <Tile label="Стек к банку" value={decimal(a.spr)}
-          caption={a.spr < 3 ? 'весь стек уедет за одну ставку' : a.spr > 10 ? 'глубоко' : 'средняя глубина'} />
         <Tile label="Если он поставит 2/3 банка" value={percent(minimumDefence(freq), 0)}
           tint="var(--muted)" caption="столько рук вам придётся не сбрасывать" />
       </div>

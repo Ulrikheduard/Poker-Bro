@@ -3,6 +3,8 @@ import { parseCards } from './cards'
 import { analyseDraws } from './draws'
 import { exactOutsEquity, quickEquity } from './odds'
 import { HIGH_CARD, TRIPS } from './evaluator'
+import { analyseSpot } from './advice'
+import { calculateEquity } from './equity'
 
 const analyse = (hole: string, board: string) => analyseDraws(parseCards(hole), parseCards(board))!
 
@@ -61,5 +63,53 @@ describe('дро и ауты', () => {
     expect(exact).toBeCloseTo(0.35, 2)
     expect(quickEquity(9, 2)).toBeGreaterThan(exact)
     expect(exactOutsEquity(9, 46, 1)).toBeCloseTo(0.196, 2)
+  })
+})
+
+describe('делёжка банка', () => {
+  it('«доска играет» определяется точно, а не по доле ничьих', () => {
+    // Стрит A-K-Q-J-10 лежит на столе, флеш невозможен — обыграть нечем
+    const a = analyseSpot({
+      hole: parseCards('2c 3d'), board: parseCards('As Ks Qd Jh Tc'),
+      pot: 100, toCall: 0, effectiveStack: 900, opponents: 1, opponentRange: null,
+    })
+    expect(a.boardPlays).toBe(true)
+    expect(a.equity.tie).toBeCloseTo(1, 4)
+    expect(a.equity.win).toBeCloseTo(0, 4)
+    expect(a.equity.equity).toBeCloseTo(0.5, 4)   // половина банка, а не победа
+    expect(a.advice.headline).toContain('разделится')
+    expect(a.advice.reasons[0]).toContain('Играет доска')
+  })
+
+  /** Поучительный случай: карманные тузы на таком борде не помогают ничем.
+   *  Каре не собирается — тузов всего три, — а стрит на столе сильнее сета,
+   *  и банк всё равно делится. */
+  it('даже карманные тузы не спасают от делёжки, если стрит на столе сильнее', () => {
+    const a = analyseSpot({
+      hole: parseCards('Ac Ad'), board: parseCards('As Ks Qd Jh Tc'),
+      pot: 100, toCall: 0, effectiveStack: 900, opponents: 1, opponentRange: null,
+    })
+    expect(a.draw?.current.title).toBe('Стрит до туза')
+    expect(a.boardPlays).toBe(true)
+    expect(a.equity.tie).toBeCloseTo(1, 4)
+  })
+
+  it('когда своя карта входит в комбинацию, доска не играет', () => {
+    const a = analyseSpot({
+      hole: parseCards('Ac Ad'), board: parseCards('As Kd 7h 3d 2c'),
+      pot: 100, toCall: 0, effectiveStack: 900, opponents: 1, opponentRange: null,
+    })
+    expect(a.draw?.current.title).toBe('Сет тузов')
+    expect(a.boardPlays).toBe(false)
+    expect(a.equity.win).toBeGreaterThan(0.95)
+  })
+
+  it('ничья на троих стоит трети банка, а не половины', () => {
+    const three = calculateEquity({
+      hero: parseCards('2c 3d'), board: parseCards('As Ks Qd Jh Tc'),
+      opponents: 3, model: { kind: 'random' },
+    }, 20_000)
+    expect(three.tie).toBeCloseTo(1, 2)
+    expect(three.equity).toBeCloseTo(0.25, 2)   // банк на четверых
   })
 })

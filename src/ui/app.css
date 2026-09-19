@@ -215,10 +215,12 @@
 
 /* ── Выбор карты ───────────────────────────────────────────────────────── */
 
+/* Портал в `body` плюс заведомо больший z-index: и порядок в разметке,
+   и слой играют за лист, поэтому перекрыть его нижней панели нечем. */
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 100;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(2px);
   display: flex;
@@ -468,6 +470,15 @@
 }
 
 .term-sheet { display: flex; flex-direction: column; gap: var(--m); }
+.sheet-remove {
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: var(--s);
+  border-radius: var(--radius-s);
+  color: var(--bad);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
 .term-sheet-head { display: flex; align-items: baseline; gap: var(--s); flex-wrap: wrap; }
 .term-sheet-head b { font-size: var(--f-large); }
 .term-sheet-head .en { font-size: var(--f-s); color: var(--faint); }
@@ -579,3 +590,8 @@
   white-space: nowrap;
 }
 .icon-btn svg { flex: none; }
+
+/* Три исхода раздачи словами. Пояснение про делёжку живёт внутри той же
+   плашки: оно объясняет ровно то число, что стоит строкой выше. */
+.plain p { margin: 0; }
+.plain .note { margin-top: var(--s); }

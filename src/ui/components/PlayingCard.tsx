@@ -1,9 +1,9 @@
-import { useEffect } from 'react'
 import {
   type Card, ALL_RANKS, ALL_SUITS, RANK_LABEL, SUIT_SYMBOL, SUIT_NAME,
   cardRank, cardSuit, isRed, makeCard,
 } from '../../engine/cards'
 import { Haptics } from '../haptics'
+import { Sheet } from './Sheet'
 
 const ink = (card: Card, dim: boolean) =>
   dim ? 'var(--faint)' : isRed(card) ? 'var(--suit-red)' : 'var(--suit-black)'
@@ -59,56 +59,39 @@ export function CardPicker({ used, current, title, onPick, onClose }: {
   onPick: (card: Card | null) => void
   onClose: () => void
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const ranks = [...ALL_RANKS].reverse()
   return (
-    <div className="sheet-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="grabber" />
-        <h2>{title}</h2>
-        {ALL_SUITS.map((suit) => (
-          <div className="picker-suit" key={suit}>
-            {ranks.map((rank) => {
-              const card = makeCard(rank, suit)
-              const taken = used.has(card) && card !== current
-              return (
-                <button
-                  key={card}
-                  type="button"
-                  className="picker-cell press-xs"
-                  data-taken={taken}
-                  data-selected={card === current}
-                  disabled={taken}
-                  style={{ color: ink(card, taken) }}
-                  onClick={() => { Haptics.place(); onPick(card) }}
-                >
-                  <span>{RANK_LABEL[rank]}</span>
-                  <span className="s">{SUIT_SYMBOL[suit]}</span>
-                </button>
-              )
-            })}
-          </div>
-        ))}
-        {current !== null && (
-          <button
-            type="button"
-            className="press"
-            style={{
-              width: '100%', minHeight: 'var(--tap)', marginTop: 'var(--s)',
-              borderRadius: 'var(--radius-s)', color: 'var(--bad)', fontWeight: 600,
-              background: 'color-mix(in srgb, var(--bad) 12%, transparent)',
-            }}
-            onClick={() => { Haptics.tap(); onPick(null) }}
-          >
-            Убрать карту
-          </button>
-        )}
-      </div>
-    </div>
+    <Sheet title={title} onClose={onClose}>
+      {ALL_SUITS.map((suit) => (
+        <div className="picker-suit" key={suit}>
+          {ranks.map((rank) => {
+            const card = makeCard(rank, suit)
+            const taken = used.has(card) && card !== current
+            return (
+              <button
+                key={card}
+                type="button"
+                className="picker-cell press-xs"
+                data-taken={taken}
+                data-selected={card === current}
+                disabled={taken}
+                style={{ color: ink(card, taken) }}
+                aria-label={`${RANK_LABEL[rank]} ${SUIT_NAME[suit]}`}
+                onClick={() => { Haptics.place(); onPick(card) }}
+              >
+                <span aria-hidden="true">{RANK_LABEL[rank]}</span>
+                <span className="s" aria-hidden="true">{SUIT_SYMBOL[suit]}</span>
+              </button>
+            )
+          })}
+        </div>
+      ))}
+      {current !== null && (
+        <button type="button" className="press sheet-remove"
+          onClick={() => { Haptics.tap(); onPick(null) }}>
+          Убрать карту
+        </button>
+      )}
+    </Sheet>
   )
 }

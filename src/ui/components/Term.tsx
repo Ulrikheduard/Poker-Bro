@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { CATEGORY_TITLE } from '../../engine/glossary'
 import { linkTerms, termById } from '../terms'
 import { Haptics } from '../haptics'
+import { Sheet } from './Sheet'
 
 /**
  * Термины в тексте открывают определение прямо на месте. Смысл в том, чтобы
@@ -20,12 +21,10 @@ export function GlossaryProvider({ children }: { children: ReactNode }) {
     <GlossaryContext.Provider value={open}>
       {children}
       {term && (
-        <div className="sheet-backdrop" onClick={() => setOpenId(null)}
-          role="dialog" aria-modal="true" aria-label={term.term}>
-          <div className="sheet term-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="grabber" />
+        <Sheet onClose={() => setOpenId(null)} labelledBy="term-sheet-title">
+          <div className="term-sheet">
             <div className="term-sheet-head">
-              <b>{term.term}</b>
+              <b id="term-sheet-title">{term.term}</b>
               <span className="en">{term.english}</span>
             </div>
             <span className="chip" style={{ color: 'var(--info)', alignSelf: 'flex-start' }}>
@@ -37,7 +36,7 @@ export function GlossaryProvider({ children }: { children: ReactNode }) {
               Понятно
             </button>
           </div>
-        </div>
+        </Sheet>
       )}
     </GlossaryContext.Provider>
   )
