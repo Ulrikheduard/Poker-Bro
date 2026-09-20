@@ -169,6 +169,16 @@
 }
 .hint { font-size: var(--f-xxs); color: var(--faint); }
 
+/* Договорённость о том, что считать банком, — не примечание, а условие задачи:
+   не прочитав её, человек введёт другие числа и не узнает об этом. Поэтому
+   кегль читаемый, а не мелкий, как у подсказок. */
+.convention {
+  font-size: var(--f-s);
+  color: var(--muted);
+  padding-left: var(--s);
+  border-left: 1px solid var(--stroke);
+}
+
 /* ── Пояснение «Как это считается» ─────────────────────────────────────── */
 
 .note summary {
@@ -207,6 +217,14 @@
 }
 .card-face.dim { background: var(--raised); color: var(--faint) !important; }
 .card-face .r { font-weight: 800; }
+
+/* Слот, до которого очередь не дошла: тёрна без флопа не бывает. Он остаётся
+   на месте, чтобы ряд не прыгал, но не зовёт себя нажать. */
+.card-slot.locked {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--stroke) 45%, transparent);
+  background: none;
+}
 
 .card-slot {
   border: 1.5px dashed var(--stroke);

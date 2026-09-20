@@ -29,19 +29,30 @@ export function PlayingCard({ card, width = 46, dim = false }: {
   )
 }
 
-export function CardSlot({ card, width = 46, placeholder, onClick }: {
+export function CardSlot({ card, width = 46, placeholder, disabled = false, onClick }: {
   card: Card | null
   width?: number
   placeholder?: string
+  /** Слот, до которого очередь ещё не дошла: тёрна без флопа не бывает. */
+  disabled?: boolean
   onClick: () => void
 }) {
   return (
-    <button type="button" className="press-s" onClick={onClick} style={{ display: 'flex' }}>
+    <button
+      type="button"
+      className="press-s"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={disabled ? `${placeholder}: сначала доберите предыдущие карты` : placeholder}
+      style={{ display: 'flex' }}
+    >
       {card !== null
         ? <PlayingCard card={card} width={width} />
         : (
-          <span className="card-slot" style={{ width, height: width * 1.42 }}>
-            {placeholder}
+          <span className={'card-slot' + (disabled ? ' locked' : '')}
+            style={{ width, height: width * 1.42 }}>
+            {/* У закрытого слота подписи нет: она звала бы нажать. */}
+            {disabled ? '' : placeholder}
           </span>
         )}
     </button>

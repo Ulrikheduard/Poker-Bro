@@ -31,20 +31,102 @@ const client = new EquityClient()
 
 type Target = { kind: 'hole' | 'board'; index: number }
 
+const STORE_KEY = 'pokerbro.solver.v1'
+
+interface Spot {
+  hole: Array<Card | null>
+  board: Array<Card | null>
+  pot: number
+  toCall: number
+  stack: number
+  opponents: number
+  villain: number
+}
+
+const EMPTY_SPOT: Spot = {
+  hole: [null, null],
+  board: [null, null, null, null, null],
+  pot: 100, toCall: 0, stack: 900, opponents: 1, villain: 0,
+}
+
+/** Карты приходят из хранилища числами: проверяем, что это и правда колода. */
+function readCards(raw: unknown, length: number): Array<Card | null> | null {
+  if (!Array.isArray(raw) || raw.length !== length) return null
+  const out: Array<Card | null> = []
+  for (const value of raw) {
+    if (value === null) { out.push(null); continue }
+    if (!Number.isInteger(value) || value < 0 || value > 51) return null
+    out.push(value as Card)
+  }
+  return out
+}
+
+const readNumber = (raw: unknown, fallback: number) =>
+  Number.isFinite(raw) ? Math.max(0, raw as number) : fallback
+
+/**
+ * Разложенная раздача переживает уход на другую вкладку и перезагрузку.
+ * Хранилище своё у каждого устройства; в приватном окне обращение к нему
+ * бросает исключение, поэтому каждый доступ обёрнут.
+ */
+function loadSpot(): Spot {
+  try {
+    const raw = localStorage.getItem(STORE_KEY)
+    if (!raw) return EMPTY_SPOT
+    const parsed = JSON.parse(raw) as Partial<Spot>
+    const hole = readCards(parsed.hole, 2)
+    const board = readCards(parsed.board, 5)
+    if (!hole || !board) return EMPTY_SPOT
+
+    // Доска с пропуском невозможна в интерфейсе, но в хранилище могла попасть
+    // из прошлой версии — подбираем её в порядок, а не показываем дыру.
+    const packed = board.filter((c): c is Card => c !== null)
+    const tidy: Array<Card | null> = [0, 1, 2, 3, 4].map((i) => packed[i] ?? null)
+
+    const all = [...hole, ...tidy].filter((c): c is Card => c !== null)
+    if (new Set(all).size !== all.length) return EMPTY_SPOT
+
+    return {
+      hole,
+      board: tidy,
+      pot: readNumber(parsed.pot, EMPTY_SPOT.pot),
+      toCall: readNumber(parsed.toCall, EMPTY_SPOT.toCall),
+      stack: readNumber(parsed.stack, EMPTY_SPOT.stack),
+      opponents: [1, 2, 3, 4].includes(parsed.opponents as number) ? parsed.opponents! : 1,
+      villain: VILLAINS.some((v) => v.value === parsed.villain) ? parsed.villain! : 0,
+    }
+  } catch {
+    return EMPTY_SPOT
+  }
+}
+
+function saveSpot(spot: Spot) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(spot))
+  } catch {
+    // Память недоступна — раздача проживёт до перезагрузки, падать незачем.
+  }
+}
+
 export function Solver() {
-  const [hole, setHole] = useState<Array<Card | null>>([null, null])
-  const [board, setBoard] = useState<Array<Card | null>>([null, null, null, null, null])
-  const [pot, setPot] = useState(100)
-  const [toCall, setToCall] = useState(0)
-  const [stack, setStack] = useState(900)
-  const [opponents, setOpponents] = useState(1)
-  const [villain, setVillain] = useState(0)
+  const [restored] = useState(loadSpot)
+  const [hole, setHole] = useState<Array<Card | null>>(restored.hole)
+  const [board, setBoard] = useState<Array<Card | null>>(restored.board)
+  const [pot, setPot] = useState(restored.pot)
+  const [toCall, setToCall] = useState(restored.toCall)
+  const [stack, setStack] = useState(restored.stack)
+  const [opponents, setOpponents] = useState(restored.opponents)
+  const [villain, setVillain] = useState(restored.villain)
   const [picking, setPicking] = useState<Target | null>(null)
 
   const [analysis, setAnalysis] = useState<SpotAnalysis | null>(null)
   const [working, setWorking] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const lastAction = useRef<string | null>(null)
+
+  useEffect(() => {
+    saveSpot({ hole, board, pot, toCall, stack, opponents, villain })
+  }, [hole, board, pot, toCall, stack, opponents, villain])
 
   const holeCards = useMemo(() => hole.filter((c): c is Card => c !== null), [hole])
   // Доска считается по порядку: без флопа тёрна не бывает.
@@ -56,7 +138,10 @@ export function Solver() {
 
   const used = useMemo(() => new Set([...holeCards, ...boardCards]), [holeCards, boardCards])
   const street = streetFor(boardCards.length)
-  const ready = holeCards.length === 2
+  // Одна или две карты на столе — не улица, а недобранный флоп. Считать по ним
+  // нечего: такой доски не бывает, а движок молча выдал бы уверенное число.
+  const flopIncomplete = boardCards.length === 1 || boardCards.length === 2
+  const ready = holeCards.length === 2 && !flopIncomplete
 
   useEffect(() => {
     if (!ready) { setAnalysis(null); setProblem(null); setWorking(false); return }
@@ -141,7 +226,8 @@ export function Solver() {
     <>
       <Panel>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s)' }}>
-          <Chip text={STREET_TITLE[street]} tint="var(--info)" />
+          <Chip text={flopIncomplete ? 'Флоп не добран' : STREET_TITLE[street]}
+            tint={flopIncomplete ? 'var(--warn)' : 'var(--info)'} />
           <span style={{ flex: 1 }} />
           {working && <Spinner />}
           <button type="button" className="press icon-btn" onClick={deal}>
@@ -170,6 +256,10 @@ export function Solver() {
             {board.map((card, index) => (
               <CardSlot key={index} card={card} width={44}
                 placeholder={index < 3 ? 'флоп' : index === 3 ? 'тёрн' : 'ривер'}
+                // Пока предыдущая карта не выбрана, слот закрыт: иначе тёрн
+                // ложится при пустом флопе, виден на экране и молча
+                // выбрасывается из расчёта.
+                disabled={index > 0 && board[index - 1] === null}
                 onClick={() => setPicking({ kind: 'board', index })} />
             ))}
           </div>
@@ -178,7 +268,21 @@ export function Solver() {
         {texture && <span className="hint">Доска: {texture.summary}</span>}
       </Panel>
 
-      {!ready && (
+      {flopIncomplete && (
+        <Panel>
+          <b style={{ color: 'var(--warn)' }}>
+            {/* «Не хватает» требует родительного, а вариантов всего два —
+                таблица склонений здесь была бы сложнее самого текста. */}
+            Доберите флоп: не хватает {boardCards.length === 2 ? 'одной карты' : 'двух карт'}
+          </b>
+          <span className="hint">
+            Флоп открывают сразу тремя картами — доски из одной или двух не бывает.
+            Пока она неполная, считать нечего: любое число здесь было бы выдумкой.
+          </span>
+        </Panel>
+      )}
+
+      {!ready && !flopIncomplete && (
         <Panel>
           <b>Выберите две карты руки</b>
           <span className="hint">
@@ -201,8 +305,15 @@ export function Solver() {
       )}
 
       <Panel title="Ситуация">
-        <Stepper label="Банк" value={pot} step={10} onChange={setPot} />
-        <Stepper label="Нужно доколлировать" value={toCall} step={10} onChange={setToCall} />
+        <Stepper label="Банк со ставкой" value={pot} step={10} onChange={setPot} />
+        <Stepper label="Доколлировать" value={toCall} step={10} onChange={setToCall} />
+        {/* Договорённость о банке решает всё: с «банком до ставки» шансы
+            выходят 2,0 : 1 вместо 3 : 1, и человек об этом не узнает.
+            Поэтому она не в примечании, а прямо под шагами, с примером. */}
+        <span className="convention">
+          Банк считается вместе со ставкой оппонента. Он поставил 50 в банк 100 —
+          значит, банк 150, доколлировать 50.
+        </span>
         <Stepper label="Ваш стек" value={stack} step={50} onChange={setStack} />
         <div className="field">
           <span className="label">Оппонентов</span>
