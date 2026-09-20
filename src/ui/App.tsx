@@ -57,7 +57,14 @@ export function App() {
             setScrolled((was) => (was === next ? was : next))
           }}
         >
-          <main className="content">
+          <main
+            className="content"
+            // Вкладка объявляла себя вкладкой и вела в никуда: панели, которой
+            // она управляет, в разметке не было.
+            role="tabpanel"
+            id={`panel-${TABS[tab].id}`}
+            aria-labelledby={`tab-${TABS[tab].id}`}
+          >
             <Current />
           </main>
         </div>
@@ -68,7 +75,21 @@ export function App() {
               key={item.id}
               type="button"
               role="tab"
+              id={`tab-${item.id}`}
+              aria-controls={`panel-${item.id}`}
               aria-selected={tab === index}
+              // Обход стрелками, а не по всем пяти кнопкам: так устроен
+              // набор вкладок, и Switch Control этого ждёт.
+              tabIndex={tab === index ? 0 : -1}
+              onKeyDown={(e) => {
+                const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+                if (step === 0) return
+                e.preventDefault()
+                const next = (index + step + TABS.length) % TABS.length
+                Haptics.select()
+                setTab(next)
+                document.getElementById(`tab-${TABS[next].id}`)?.focus()
+              }}
               onClick={() => {
                 if (tab === index) {
                   // Повторное нажатие по активной вкладке возвращает наверх —

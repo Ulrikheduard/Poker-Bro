@@ -1,6 +1,6 @@
 import {
-  type Card, ALL_RANKS, ALL_SUITS, RANK_LABEL, SUIT_SYMBOL, SUIT_NAME,
-  cardRank, cardSuit, isRed, makeCard,
+  type Card, ALL_RANKS, ALL_SUITS, RANK_LABEL, SUIT_SYMBOL,
+  cardRank, cardSuit, cardSpoken, isRed, makeCard,
 } from '../../engine/cards'
 import { Haptics } from '../haptics'
 import { Sheet } from './Sheet'
@@ -21,7 +21,7 @@ export function PlayingCard({ card, width = 46, dim = false }: {
     <div
       className={'card-face' + (dim ? ' dim' : '')}
       style={{ width, height: width * 1.42, color: ink(card, dim) }}
-      aria-label={`${RANK_LABEL[cardRank(card)]} ${SUIT_NAME[cardSuit(card)]}`}
+      aria-label={cardSpoken(card)}
     >
       <span className="r" style={{ fontSize: width * 0.46 }}>{RANK_LABEL[cardRank(card)]}</span>
       <span style={{ fontSize: width * 0.4 }}>{SUIT_SYMBOL[cardSuit(card)]}</span>
@@ -87,7 +87,7 @@ export function CardPicker({ used, current, title, onPick, onClose }: {
                 data-selected={card === current}
                 disabled={taken}
                 style={{ color: ink(card, taken) }}
-                aria-label={`${RANK_LABEL[rank]} ${SUIT_NAME[suit]}`}
+                aria-label={taken ? `${cardSpoken(card)}, уже занята` : cardSpoken(card)}
                 onClick={() => { Haptics.place(); onPick(card) }}
               >
                 <span aria-hidden="true">{RANK_LABEL[rank]}</span>

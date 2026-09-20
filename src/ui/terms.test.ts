@@ -66,3 +66,23 @@ describe('связка текста со словарём', () => {
     expect(segments).toEqual([{ text: 'Сегодня хорошая погода' }])
   })
 })
+
+describe('как карты называются вслух', () => {
+  it('диктор читает «Туз пик», а не «A пики»', async () => {
+    const { cardSpoken, parseCards } = await import('../engine/cards')
+    const [as, td, jc, qh] = parseCards('As Td Jc Qh')
+    expect(cardSpoken(as)).toBe('Туз пик')
+    expect(cardSpoken(td)).toBe('Десятка бубен')
+    expect(cardSpoken(jc)).toBe('Валет треф')
+    expect(cardSpoken(qh)).toBe('Дама червей')
+  })
+
+  it('у всех 52 карт имя непустое и без латиницы', async () => {
+    const { cardSpoken, FULL_DECK } = await import('../engine/cards')
+    for (const card of FULL_DECK) {
+      const name = cardSpoken(card)
+      expect(name.length).toBeGreaterThan(4)
+      expect(name).not.toMatch(/[A-Za-z]/)
+    }
+  })
+})

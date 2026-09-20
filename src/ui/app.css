@@ -218,7 +218,10 @@
   line-height: 1;
   flex: none;
 }
-.card-face.dim { background: var(--raised); color: var(--faint) !important; }
+/* Приглушённая карта: та, что в комбинацию не вошла. Отличает её фон —
+   тёмный вместо белого, — поэтому текст можно держать читаемым. faint на
+   raised давал 4,30:1, а достоинство и масть здесь всё-таки надо разбирать. */
+.card-face.dim { background: var(--raised); color: var(--muted) !important; }
 .card-face .r { font-weight: 800; }
 
 /* Слот, до которого очередь не дошла: тёрна без флопа не бывает. Он остаётся
@@ -304,7 +307,9 @@
   justify-content: center;
   overflow: hidden;
 }
-.grid13 button[data-action='fold'] { color: var(--faint); }
+/* Клетка «фолд» залита --raised, и faint на ней даёт 4,30:1 — ниже порога 4,5.
+   Это 83 клетки из 169, то есть половина сетки. muted на raised даёт 6,96:1. */
+.grid13 button[data-action='fold'] { color: var(--muted); }
 .grid13 button[data-selected='true'] { outline: 2px solid var(--text); outline-offset: -2px; }
 .legend { display: flex; gap: var(--m); flex-wrap: wrap; font-size: var(--f-xs); color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: var(--xs); }
@@ -400,9 +405,13 @@
   background: var(--raised);
   border: 1px solid transparent;
   padding: 0 var(--m);
-  font-size: var(--f-body);
+  /* Ровно 16px: при меньшем кегле Safari на iOS увеличивает страницу,
+     как только поле получает фокус, и раскладка уезжает. */
+  font-size: 16px;
 }
-.search::placeholder { color: var(--faint); }
+/* Поле поиска залито --raised: подсказка внутри него тоже обязана
+   проходить порог, а faint на raised его не проходит. */
+.search::placeholder { color: var(--muted); }
 .search:focus { outline: none; border-color: var(--info); }
 
 .strip { display: flex; gap: var(--s); overflow-x: auto; padding-bottom: var(--xs); scrollbar-width: none; }
@@ -687,6 +696,20 @@
 }
 .grid13 button:focus-visible { outline-offset: -2px; }
 .picker-cell:focus-visible { outline-offset: 1px; }
+
+/* Текст только для экранного диктора: на экране его нет, вслух он есть.
+   `clip-path` вместо `display:none` — скрытое таким образом не читается. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ── Цели нажатия ──────────────────────────────────────────────────────── */
 

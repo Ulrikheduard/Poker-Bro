@@ -299,11 +299,17 @@ export function Solver() {
         </Panel>
       )}
 
-      {problem && <Panel><span style={{ color: 'var(--bad)' }}>{problem}</span></Panel>}
+      {problem && (
+        <Panel>
+          <span role="alert" style={{ color: 'var(--bad)' }}>{problem}</span>
+        </Panel>
+      )}
 
+      {/* Решение появляется само, без перехода фокуса: без объявления
+          экранный диктор о нём просто не узнает. */}
       {analysis && (
         <div className={'appear' + (working ? ' fading' : '')}
-          style={{ display: 'contents' }}>
+          role="status" aria-live="polite" style={{ display: 'contents' }}>
           <Verdict analysis={analysis} />
           <Numbers analysis={analysis} />
           {analysis.draw && analysis.draw.draws.length > 0 && <Draws analysis={analysis} />}
@@ -560,10 +566,15 @@ function Stepper({ label, value, step, max, onChange }: {
 
 function Spinner() {
   return (
-    <span aria-label="считается" style={{
-      width: 14, height: 14, borderRadius: '50%',
-      border: '2px solid var(--stroke)', borderTopColor: 'var(--faint)',
-      animation: 'spin 0.7s linear infinite', display: 'inline-block',
-    }} />
+    <>
+      <span aria-hidden="true" style={{
+        width: 14, height: 14, borderRadius: '50%',
+        border: '2px solid var(--stroke)', borderTopColor: 'var(--faint)',
+        animation: 'spin 0.7s linear infinite', display: 'inline-block',
+      }} />
+      {/* `aria-label` на голом span диктор чаще всего пропускает: у элемента
+          нет роли, к которой это имя можно привязать. Поэтому — настоящий текст. */}
+      <span className="sr-only" role="status">Идёт расчёт</span>
+    </>
   )
 }

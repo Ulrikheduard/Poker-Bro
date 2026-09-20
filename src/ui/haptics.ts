@@ -35,7 +35,14 @@ function ensureElement(): HTMLLabelElement | null {
 function pulse(pattern: number | number[]): void {
   const element = ensureElement()
   if (element && toggle) {
+    // Щелчок по скрытому переключателю уводит фокус на него: обход с внешней
+    // клавиатуры после каждого действия начинался бы заново, а VoiceOver
+    // попадал бы в узел с aria-hidden. Возвращаем фокус туда, где он был.
+    const previous = document.activeElement as HTMLElement | null
     try { element.click() } catch { /* система отклик не дала — не беда */ }
+    if (previous && previous !== document.activeElement) {
+      try { previous.focus({ preventScroll: true }) } catch { /* элемент уже исчез */ }
+    }
   }
   const vibrate = typeof navigator !== 'undefined' ? navigator.vibrate?.bind(navigator) : undefined
   if (vibrate) { try { vibrate(pattern) } catch { /* заблокировано настройками */ } }

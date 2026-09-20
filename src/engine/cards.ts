@@ -35,6 +35,25 @@ export const cardSuit = (card: Card): Suit => (card & 3) as Suit
 export const isRed = (card: Card): boolean => cardSuit(card) === DIAMONDS || cardSuit(card) === HEARTS
 
 export const cardCode = (card: Card): string => RANK_CODE[cardRank(card)] + SUIT_LETTER[cardSuit(card)]
+/**
+ * Как карту называют вслух. Экранный диктор читает `aria-label`, и «A пики»
+ * он произносит как латинскую букву с мастью в именительном — то есть никак.
+ * За столом говорят «туз пик», поэтому масть здесь в родительном падеже.
+ */
+export const RANK_SPOKEN: Record<number, string> = {
+  2: 'двойка', 3: 'тройка', 4: 'четвёрка', 5: 'пятёрка', 6: 'шестёрка',
+  7: 'семёрка', 8: 'восьмёрка', 9: 'девятка', 10: 'десятка',
+  11: 'валет', 12: 'дама', 13: 'король', 14: 'туз',
+}
+
+export const SUIT_GENITIVE = ['треф', 'бубен', 'червей', 'пик'] as const
+
+/** «Туз пик», «Десятка червей» — то, как карту называют за столом. */
+export const cardSpoken = (card: Card): string => {
+  const rank = RANK_SPOKEN[cardRank(card)]
+  return `${rank.charAt(0).toUpperCase()}${rank.slice(1)} ${SUIT_GENITIVE[cardSuit(card)]}`
+}
+
 export const cardLabel = (card: Card): string => RANK_LABEL[cardRank(card)]
 export const cardSymbol = (card: Card): string => SUIT_SYMBOL[cardSuit(card)]
 export const cardName = (card: Card): string => `${RANK_LABEL[cardRank(card)]} ${SUIT_NAME[cardSuit(card)]}`

@@ -221,6 +221,14 @@ export function Trainer() {
     update({ mode: value, results: [], streak: 0, best })
   }
 
+  // Кнопка, по которой ответили, исчезает — фокус остался бы на пустом месте
+  // и обход начался бы с начала страницы. Переводим его на разбор ответа:
+  // там же и объяснение, и кнопка «Дальше».
+  const verdictRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (answered !== null) verdictRef.current?.focus({ preventScroll: true })
+  }, [answered])
+
   const ok = answered === question.correct
   const hint = MODES.find((m) => m.value === mode)!.hint
   // Подсказка нужна, пока человек не начал: дальше она только занимает высоту.
@@ -231,7 +239,7 @@ export function Trainer() {
       <div className="trainer-top">
         <Segmented options={MODES.map((m) => ({ value: m.value, label: m.label }))}
           value={mode} onChange={changeMode} />
-        <div className="session">
+        <div className="session" role="status" aria-live="polite">
           <span>{results.length} из {SESSION_LENGTH}</span>
           {streak >= 2 && <span className="session-streak">подряд {streak}</span>}
         </div>
@@ -260,7 +268,8 @@ export function Trainer() {
                 </div>
               </>
             ) : (
-              <div className="verdict appear">
+              <div className="verdict appear" ref={verdictRef} tabIndex={-1}
+                role="status" aria-live="polite">
                 <b className={ok ? 'good' : 'bad'}>
                   {ok ? 'Верно' : `Не угадали — ${question.options[question.correct].toLowerCase()}`}
                 </b>
