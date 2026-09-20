@@ -1,201 +1,278 @@
-import { useCallback, useEffect, useState } from 'react'
-import { type Card, FULL_DECK } from '../../engine/cards'
-import { evaluate } from '../../engine/evaluator'
-import { ALL_HAND_CLASSES, cardPairs } from '../../engine/range'
-import { OPEN_RAISE, FACING_OPEN, actionFor, ACTION_TITLE, POSITION_HINT } from '../../engine/charts'
-import { potOdds, requiredEquity, exactOutsEquity, quickEquity } from '../../engine/odds'
-import { Panel, Tile, Segmented } from '../components/kit'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { type Card } from '../../engine/cards'
+import { Segmented } from '../components/kit'
 import { PlayingCard } from '../components/PlayingCard'
 import { Linked } from '../components/Term'
-import { IconCheck, IconCross } from '../components/icons'
 import { Haptics } from '../haptics'
-import { percent, chips, outsWord } from '../format'
+import { chips } from '../format'
+import { type Deal, type Mode, type Question, MODES, makeQuestion } from './trainer.questions'
 
 /**
  * Тренажёр. Смысл не в очках, а в том, что ответ проверяет тот же движок,
- * который считает раздачи: «какая рука сильнее» решает оценщик, а не автор
- * вопроса, поэтому задания генерируются бесконечно и не устаревают.
+ * который считает раздачи, — поэтому задания генерируются бесконечно
+ * и не устаревают.
+ *
+ * Экран собран под один заход одной рукой: кадр раздачи сверху, ответы внизу,
+ * и то и другое помещается без прокрутки. Всё, что не помогает ответить,
+ * с экрана убрано.
  */
 
-type Mode = 'showdown' | 'preflop' | 'odds'
+const SESSION_LENGTH = 10
+const STORE_KEY = 'pokerbro.trainer.v1'
 
-const MODES: Array<{ value: Mode; label: string; hint: string }> = [
-  { value: 'showdown', label: 'Кто сильнее', hint: 'Две руки на одной доске. Какая из них выигрывает?' },
-  { value: 'preflop', label: 'До флопа', hint: 'Ваша позиция, ситуация за столом и две карты. Что делать?' },
-  { value: 'odds', label: 'Шанс', hint: 'Выгодно ли уравнять ставку? Сравните шансы банка со своими шансами попасть.' },
-]
+interface Result { ok: boolean; label: string }
 
-interface Question {
-  prompt: string
-  detail?: string
-  board: Card[]
-  hands: Card[][]
-  options: string[]
-  correct: number
-  explanation: string
+interface Saved {
+  mode: Mode
+  results: Result[]
+  streak: number
+  best: number
 }
 
-const shuffled = () => {
-  const deck = [...FULL_DECK]
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[deck[i], deck[j]] = [deck[j], deck[i]]
-  }
-  return deck
-}
-const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)]
+const EMPTY: Saved = { mode: 'showdown', results: [], streak: 0, best: 0 }
 
-// Раздаём честно из колоды и спрашиваем оценщик — заранее заготовленных
-// «правильных ответов» здесь нет вовсе.
-function makeShowdown(): Question {
-  const deck = shuffled()
-  const board = deck.slice(0, 5)
-  const a = deck.slice(5, 7)
-  const b = deck.slice(7, 9)
-  const va = evaluate([...a, ...board])
-  const vb = evaluate([...b, ...board])
-  const correct = va.score > vb.score ? 0 : vb.score > va.score ? 1 : 2
-  return {
-    prompt: 'Кто выигрывает?',
-    board, hands: [a, b],
-    options: ['Первая рука', 'Вторая рука', 'Ничья'],
-    correct,
-    explanation: `Первая: ${va.title}.\nВторая: ${vb.title}.`,
+/**
+ * Хранилище своё у каждого устройства и никуда не уходит. Доступ обёрнут:
+ * в приватном окне обращение к localStorage бросает исключение, и тренажёр
+ * из-за этого падать не должен.
+ */
+function load(): Saved {
+  try {
+    const raw = localStorage.getItem(STORE_KEY)
+    if (!raw) return EMPTY
+    const parsed = JSON.parse(raw) as Partial<Saved>
+    const mode = MODES.some((m) => m.value === parsed.mode) ? parsed.mode! : EMPTY.mode
+    const results = Array.isArray(parsed.results)
+      ? parsed.results.filter((r): r is Result => typeof r?.ok === 'boolean').slice(0, SESSION_LENGTH)
+      : []
+    return {
+      mode,
+      results,
+      streak: Number.isFinite(parsed.streak) ? Math.max(0, parsed.streak!) : 0,
+      best: Number.isFinite(parsed.best) ? Math.max(0, parsed.best!) : 0,
+    }
+  } catch {
+    return EMPTY
   }
 }
 
-function makePreflop(): Question {
-  const spot = pick([...OPEN_RAISE, ...FACING_OPEN])
-  const hand = pick(ALL_HAND_CLASSES)
-  const action = actionFor(spot, hand.notation)
-  const [c1, c2] = pick(cardPairs(hand))
-  const options: Array<'raise' | 'call' | 'fold'> = ['raise', 'call', 'fold']
-  return {
-    prompt: spot.title,
-    detail: POSITION_HINT[spot.hero],
-    board: [],
-    hands: [[c1, c2]],
-    options: options.map((a) => ACTION_TITLE[a]),
-    correct: options.indexOf(action),
-    explanation: `${hand.notation} — ${ACTION_TITLE[action].toLowerCase()}.\n\n${spot.note}`,
+function save(state: Saved) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state))
+  } catch {
+    // Память недоступна — сессия проживёт до перезагрузки, и это не повод падать.
   }
 }
 
-function makeOdds(): Question {
-  const pot = pick([60, 80, 100, 120, 150, 200])
-  const bet = Math.round(pot * pick([0.33, 0.5, 0.66, 0.75, 1]))
-  const odds = potOdds(pot + bet, bet)
-  const outs = pick([4, 8, 9, 12, 15])
-  const toCome = Math.random() < 0.5 ? 2 : 1
-  const unseen = toCome === 2 ? 47 : 46
-  const equity = exactOutsEquity(outs, unseen, toCome)
-  const need = requiredEquity(odds)
-  return {
-    prompt: `Банк ${chips(pot)}, оппонент ставит ${chips(bet)}. У вас ${outs} ${outsWord(outs)}, `
-      + `${toCome === 2 ? 'две карты' : 'одна карта'} впереди.`,
-    detail: 'Считаем только прямые шансы — будущие ставки не учитываем.',
-    board: [], hands: [],
-    options: ['Колл', 'Фолд'],
-    correct: equity >= need ? 0 : 1,
-    explanation:
-      `Нужно ${percent(need)} — платите ${chips(bet)}, чтобы выиграть ${chips(pot + bet)}.\n`
-      + `У вас ${percent(equity)}: ${outs} ${outsWord(outs)} из ${unseen}.\n`
-      + `По правилу ${toCome === 2 ? '4' : '2'} в уме вышло бы ${percent(quickEquity(outs, toCome), 0)}.`,
-  }
+/** Размеры карт подобраны под 375 пунктов: пять карт борда влезают в ряд. */
+const SIZES: Record<Mode, { board: number; hand: number }> = {
+  showdown: { board: 52, hand: 60 },
+  odds: { board: 56, hand: 72 },
+  preflop: { board: 0, hand: 84 },
+}
+
+/**
+ * Кадр раздачи. Борд и рука разведены расстоянием и размером, а не подписями:
+ * ваши карты крупнее, потому что они ваши. После ответа карты, которые
+ * не вошли в комбинацию, гаснут — видно, из чего она собралась.
+ */
+function Scene({ deal, mode, playing, reveal }: {
+  deal: Deal
+  mode: Mode
+  playing?: Card[]
+  reveal: boolean
+}) {
+  const size = SIZES[mode]
+  const off = (card: Card) => reveal && playing != null && !playing.includes(card)
+  const pair = deal.hands.length > 1
+
+  return (
+    <div className="deal">
+      {(deal.position || deal.pot != null) && (
+        <div className="deal-meta">
+          {deal.position && <span className="deal-pos">{deal.position}</span>}
+          {deal.opener && <span className="deal-money">открыл: {deal.opener}</span>}
+          {deal.pot != null && deal.bet != null && (
+            <span className="deal-money">
+              в банке <b className="num">{chips(deal.pot)}</b>, ставка <b className="num">{chips(deal.bet)}</b>
+            </span>
+          )}
+        </div>
+      )}
+
+      {deal.board.length > 0 && (
+        <div className="deal-board">
+          {deal.board.map((card) => (
+            <span key={card} className={off(card) ? 'off' : undefined}>
+              <PlayingCard card={card} width={size.board} />
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Две руки сравнивают, поэтому они стоят рядом, а не друг под другом. */}
+      <div className={'deal-hands' + (pair ? ' pair' : '')}>
+        {deal.hands.map((hand, i) => (
+          <div className="deal-hand" key={i}>
+            <div className="deal-cards">
+              {hand.map((card) => (
+                <span key={card} className={off(card) ? 'off' : undefined}>
+                  <PlayingCard card={card} width={size.hand} />
+                </span>
+              ))}
+            </div>
+            {deal.handLabels[i] && <span className="deal-label">{deal.handLabels[i]}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Summary({ results, best, onAgain }: {
+  results: Result[]
+  best: number
+  onAgain: () => void
+}) {
+  const right = results.filter((r) => r.ok).length
+  const missed = results.filter((r) => !r.ok)
+
+  return (
+    <div className="summary appear">
+      <div className="summary-head">
+        <b>{right} из {results.length}</b>
+        <div className="summary-marks" aria-hidden="true">
+          {results.map((r, i) => <i key={i} className={r.ok ? 'ok' : 'no'} />)}
+        </div>
+      </div>
+
+      {missed.length === 0 ? (
+        <p className="summary-note">Все десять верно. Такое бывает редко — попробуйте режим потруднее.</p>
+      ) : (
+        <div className="summary-missed">
+          <span className="summary-caption">
+            {missed.length === 1 ? 'Одна ошибка' : `Ошибок: ${missed.length}`}
+          </span>
+          <ul>{missed.map((r, i) => <li key={i}>{r.label}</li>)}</ul>
+        </div>
+      )}
+
+      {best >= 3 && <p className="summary-note">Лучшая серия без ошибок: {best}.</p>}
+
+      <button type="button" className="primary press" onClick={onAgain}>Ещё десять</button>
+    </div>
+  )
 }
 
 export function Trainer() {
-  const [mode, setMode] = useState<Mode>('showdown')
-  const [question, setQuestion] = useState<Question>(makeShowdown)
+  // Состояние читается один раз при монтировании. Две вкладки на одном
+  // устройстве пишут в один ключ: побеждает та, где ответили последней,
+  // и это лучше, чем пытаться сливать две сессии в одну.
+  const [saved, setSaved] = useState<Saved>(load)
+  const [question, setQuestion] = useState<Question>(() => makeQuestion(load().mode))
   const [answered, setAnswered] = useState<number | null>(null)
-  const [correct, setCorrect] = useState(0)
-  const [total, setTotal] = useState(0)
-  const [streak, setStreak] = useState(0)
 
-  const next = useCallback((m: Mode) => {
+  const { mode, results, streak, best } = saved
+  const done = results.length >= SESSION_LENGTH
+
+  // Первый вопрос уже создан в useState, поэтому при монтировании не пересоздаём:
+  // иначе раздача сменилась бы у человека на глазах.
+  const mounted = useRef(false)
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return }
     setAnswered(null)
-    setQuestion(m === 'showdown' ? makeShowdown() : m === 'preflop' ? makePreflop() : makeOdds())
+    setQuestion(makeQuestion(mode))
+  }, [mode])
+
+  const update = useCallback((next: Saved) => {
+    setSaved(next)
+    save(next)
   }, [])
 
-  useEffect(() => { next(mode) }, [mode, next])
-
   const answer = (index: number) => {
-    if (answered !== null) return
+    if (answered !== null || done) return
     setAnswered(index)
-    setTotal((t) => t + 1)
     const ok = index === question.correct
     Haptics.result(ok)
-    if (ok) { setCorrect((c) => c + 1); setStreak((s) => s + 1) } else setStreak(0)
+    const nextStreak = ok ? streak + 1 : 0
+    update({
+      mode,
+      results: [...results, { ok, label: question.label }],
+      streak: nextStreak,
+      best: Math.max(best, nextStreak),
+    })
   }
 
+  const next = () => {
+    Haptics.tap()
+    setAnswered(null)
+    setQuestion(makeQuestion(mode))
+  }
+
+  const again = () => {
+    Haptics.tap()
+    setAnswered(null)
+    update({ mode, results: [], streak, best })
+    setQuestion(makeQuestion(mode))
+  }
+
+  const changeMode = (value: Mode) => {
+    // Смена режима — это новая тренировка, счёт прошлой к ней не относится.
+    update({ mode: value, results: [], streak: 0, best })
+  }
+
+  const ok = answered === question.correct
   const hint = MODES.find((m) => m.value === mode)!.hint
+  // Подсказка нужна, пока человек не начал: дальше она только занимает высоту.
+  const showHint = !done && results.length === 0 && answered === null
 
   return (
-    <>
-      <Panel>
+    <div className="trainer">
+      <div className="trainer-top">
         <Segmented options={MODES.map((m) => ({ value: m.value, label: m.label }))}
-          value={mode} onChange={setMode} />
-        <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)' }}>{hint}</span>
-        <div className="tiles">
-          <Tile label="Верно" value={`${correct} из ${total}`}
-            caption={total > 0 ? percent(correct / total, 0) : 'начните отвечать'} />
-          <Tile label="Подряд" value={String(streak)}
-            tint={streak >= 3 ? 'var(--good)' : undefined}
-            caption={streak >= 5 ? 'отличная серия' : 'без ошибок'} />
+          value={mode} onChange={changeMode} />
+        <div className="session">
+          <span>{results.length} из {SESSION_LENGTH}</span>
+          {streak >= 2 && <span className="session-streak">подряд {streak}</span>}
         </div>
-      </Panel>
-
-      <Panel>
-        <b style={{ fontSize: 'var(--f-title)' }}>{question.prompt}</b>
-        {question.detail && <span className="hint"><Linked>{question.detail}</Linked></span>}
-        {question.board.length > 0 && (
-          <div className="field">
-            <span className="label">Стол</span>
-            <div className="cards-row">
-              {question.board.map((c) => <PlayingCard key={c} card={c} width={40} />)}
-            </div>
-          </div>
-        )}
-        {question.hands.map((hand, i) => (
-          <div className="field" key={i}>
-            <span className="label">
-              {question.hands.length > 1 ? (i === 0 ? 'Первая рука' : 'Вторая рука') : 'Ваша рука'}
-            </span>
-            <div className="cards-row">
-              {hand.map((c) => <PlayingCard key={c} card={c} width={48} />)}
-            </div>
-          </div>
-        ))}
-      </Panel>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s)' }}>
-        {question.options.map((option, index) => {
-          const state = answered === null ? 'idle'
-            : index === question.correct ? 'correct'
-            : index === answered ? 'wrong' : 'muted'
-          return (
-            <button key={index} type="button" className="option press" data-state={state}
-              disabled={answered !== null} onClick={() => answer(index)}>
-              {option}
-              {answered !== null && index === question.correct && <IconCheck />}
-              {answered !== null && index === answered && index !== question.correct && <IconCross />}
-            </button>
-          )
-        })}
+        {showHint && <p className="session-hint">{hint}</p>}
       </div>
 
-      {answered !== null && (
-        <Panel className="appear">
-          <b style={{ fontSize: 'var(--f-large)', color: answered === question.correct ? 'var(--good)' : 'var(--bad)' }}>
-            {answered === question.correct ? 'Верно' : 'Не угадали'}
-          </b>
-          <span style={{ fontSize: 'var(--f-s)', color: 'var(--muted)', whiteSpace: 'pre-line' }}>
-            <Linked>{question.explanation}</Linked>
-          </span>
-          <button type="button" className="primary press"
-            onClick={() => { Haptics.tap(); next(mode) }}>Дальше</button>
-        </Panel>
+      {done ? (
+        <Summary results={results} best={best} onAgain={again} />
+      ) : (
+        <>
+          <div className="trainer-body">
+            <Scene deal={question.deal} mode={mode} playing={question.playing} reveal={answered !== null} />
+          </div>
+
+          <div className="trainer-dock">
+            {answered === null ? (
+              <>
+                <p className="ask">{question.prompt}</p>
+                {question.detail && <p className="ask-detail"><Linked>{question.detail}</Linked></p>}
+                <div className="options">
+                  {question.options.map((option, index) => (
+                    <button key={index} type="button" className="option press" onClick={() => answer(index)}>
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="verdict appear">
+                <b className={ok ? 'good' : 'bad'}>
+                  {ok ? 'Верно' : `Не угадали — ${question.options[question.correct].toLowerCase()}`}
+                </b>
+                <span className="verdict-text"><Linked>{question.explanation}</Linked></span>
+                <button type="button" className="primary press" onClick={next}>
+                  {results.length >= SESSION_LENGTH ? 'Итог' : 'Дальше'}
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       )}
-    </>
+    </div>
   )
 }

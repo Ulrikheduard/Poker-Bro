@@ -16,6 +16,10 @@ const TABS = [
   { id: 'solver', title: 'Разбор', Icon: IconSolver, Screen: Solver },
 ] as const
 
+// Тренажёру шапка не нужна: режим назван переключателем, а заголовок повторял бы
+// имя вкладки и съедал высоту, которой на этом экране в обрез.
+const BARE = new Set<string>(['trainer'])
+
 export function App() {
   const [tab, setTab] = useState(0)
   const [scrolled, setScrolled] = useState(false)
@@ -25,6 +29,7 @@ export function App() {
   const offsets = useRef<number[]>(TABS.map(() => 0))
 
   const Current = TABS[tab].Screen
+  const bare = BARE.has(TABS[tab].id)
 
   useEffect(() => {
     const element = scrollRef.current
@@ -35,10 +40,12 @@ export function App() {
 
   return (
     <GlossaryProvider>
-      <div className="app">
-        <header className={'header' + (scrolled ? ' scrolled' : '')}>
-          <h1>{TABS[tab].title}</h1>
-        </header>
+      <div className={'app' + (bare ? ' bare' : '')}>
+        {!bare && (
+          <header className={'header' + (scrolled ? ' scrolled' : '')}>
+            <h1>{TABS[tab].title}</h1>
+          </header>
+        )}
 
         <div
           className="scroll"
