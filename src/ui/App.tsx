@@ -9,11 +9,11 @@ import { Haptics } from './haptics'
 import { GlossaryProvider } from './components/Term'
 
 const TABS = [
-  { id: 'solver', title: 'Разбор', Icon: IconSolver, Screen: Solver },
-  { id: 'rankings', title: 'Комбинации', Icon: IconSpade, Screen: Rankings },
-  { id: 'charts', title: 'Чарты', Icon: IconGrid, Screen: Charts },
-  { id: 'glossary', title: 'Словарь', Icon: IconBook, Screen: Glossary },
   { id: 'trainer', title: 'Тренажёр', Icon: IconTarget, Screen: Trainer },
+  { id: 'rankings', title: 'Комбинации', Icon: IconSpade, Screen: Rankings },
+  { id: 'charts', title: 'GTO', Icon: IconGrid, Screen: Charts },
+  { id: 'glossary', title: 'Словарь', Icon: IconBook, Screen: Glossary },
+  { id: 'solver', title: 'Разбор', Icon: IconSolver, Screen: Solver },
 ] as const
 
 export function App() {

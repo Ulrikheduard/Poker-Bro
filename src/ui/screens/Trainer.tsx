@@ -22,7 +22,7 @@ type Mode = 'showdown' | 'preflop' | 'odds'
 const MODES: Array<{ value: Mode; label: string; hint: string }> = [
   { value: 'showdown', label: 'Кто сильнее', hint: 'Две руки на одной доске. Какая из них выигрывает?' },
   { value: 'preflop', label: 'До флопа', hint: 'Ваша позиция, ситуация за столом и две карты. Что делать?' },
-  { value: 'odds', label: 'Считать', hint: 'Выгодно ли уравнять ставку? Сравните шансы банка со своими шансами попасть.' },
+  { value: 'odds', label: 'Шанс', hint: 'Выгодно ли уравнять ставку? Сравните шансы банка со своими шансами попасть.' },
 ]
 
 interface Question {
