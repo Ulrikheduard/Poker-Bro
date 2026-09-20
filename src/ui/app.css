@@ -414,31 +414,169 @@
 .search::placeholder { color: var(--muted); }
 .search:focus { outline: none; border-color: var(--info); }
 
-.strip { display: flex; gap: var(--s); overflow-x: auto; padding-bottom: var(--xs); scrollbar-width: none; }
+.strip {
+  display: flex;
+  gap: var(--l);
+  overflow-x: auto;
+  padding-bottom: var(--xs);
+  scrollbar-width: none;
+}
 .strip::-webkit-scrollbar { display: none; }
+
+/* Не «таблетки», а колонтитул-оглавление: раздел назван словом, выбранный
+   подчёркнут. Заливка превращала бы выбор раздела в главное действие экрана,
+   а главное здесь — текст. */
 .strip button {
   flex: none;
-  height: 32px;
-  padding: 0 var(--m);
-  border-radius: 999px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: var(--f-s);
+  padding: var(--xs) 0;
+  font-size: var(--f-xs);
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 1.5px solid transparent;
+  border-radius: 0;
+  background: none;
 }
-.strip button[aria-pressed='true'] { background: var(--info); color: var(--bg); }
+.strip button[aria-pressed='true'] {
+  color: var(--text);
+  border-bottom-color: var(--info);
+}
 
-.term { display: flex; flex-direction: column; gap: var(--s); padding: var(--s) 0; }
-.term + .term { border-top: 1px solid var(--stroke); }
-.term > button { display: flex; align-items: baseline; gap: var(--s); text-align: left; min-height: 40px; }
-.term .name { font-size: var(--f-title); font-weight: 600; }
-.term .en { font-size: var(--f-xs); color: var(--faint); }
-.term .def { font-size: var(--f-s); color: var(--muted); }
-.term .def.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.term .example {
+/* ── Словарь ───────────────────────────────────────────────────────────── */
+
+/* Единственная поверхность приложения, где читают, а не работают. Иерархию
+   здесь держат кегль, начертание и воздух, а не рамки: словарная статья —
+   форма старше любого интерфейса, и притворяться списком ей незачем. */
+
+.lexicon { display: flex; flex-direction: column; gap: var(--m); }
+
+/* Название раздела идёт колонтитулом: оно липнет к верху, пока читаешь главу,
+   и отвечает на вопрос «где я», не занимая отдельного экрана. */
+.running-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: var(--l) 0 var(--s);
+  /* Заголовок главы, а не ещё одна подпись капителью: прямо над ним стоит
+     полоска разделов, и в одинаковом начертании они читались как повтор.
+     Капитель остаётся за английским словом и подписями связей. */
+  font-size: var(--f-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  /* Сплошной фон, а не градиент: сквозь градиент просвечивала строка статьи,
+     проезжающей под колонтитулом, и обе становились нечитаемыми. */
+  background: var(--bg);
+  box-shadow: 0 6px 12px -8px var(--bg);
+}
+
+.chapter { display: flex; flex-direction: column; }
+
+/* Статья, а не строка списка: без рамки, без шеврона, целиком на виду.
+   Отбивает статьи расстояние и волосяная линия — в наборе этого довольно. */
+.entry {
+  position: relative;
+  padding: var(--l) 0;
+  scroll-margin-top: 44px;
+  border-radius: var(--radius-s);
+  transition: background-color 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Линейка отдельным слоем, а не рамкой: следуя закруглению, она читалась бы
+   как остаток коробки, а закругление нужно только подсветке прибытия. */
+.entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--stroke);
+}
+.chapter .entry:first-of-type::before { display: none; }
+
+/* Метка прибытия — единственное движение на экране. Она отвечает на вопрос
+   «куда меня перенесло» и гаснет сама, не требуя внимания. */
+.entry.landed {
+  background-color: color-mix(in srgb, var(--info) 13%, transparent);
+  transition: none;
+}
+
+.entry-head {
+  margin: 0 0 var(--s);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s);
+}
+.entry-term {
+  font-size: var(--f-large);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+/* Английское соответствие — не подпись мелким серым, а часть заголовка:
+   за столом говорят вперемешку, и знать обе формы нужно одинаково. */
+.entry-en {
+  font-size: var(--f-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.entry-def {
+  margin: 0;
+  font-size: var(--f-body);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Пример отбит линейкой и читается как цитата. Раньше он прятался за
+   раскрывашкой, хотя определение без примера — половина объяснения. */
+.entry-example {
+  margin: var(--m) 0 0;
+  padding-left: var(--m);
+  border-left: 1px solid var(--stroke);
   font-size: var(--f-s);
-  border-left: 2px solid var(--info);
-  padding: var(--xs) 0 var(--xs) var(--m);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ── Связи ─────────────────────────────────────────────────────────────── */
+
+/* Связь существует, если статья действительно упоминает другую: список
+   выведен из текстов, а не размечен руками. */
+.rel {
+  margin: var(--m) 0 0;
+  font-size: var(--f-s);
+  line-height: 1.7;
+  color: var(--faint);
+}
+.rel-label {
+  font-size: var(--f-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-right: var(--s);
+}
+.rel-sep { color: var(--stroke); margin: 0 var(--xs); }
+.rel-rest { color: var(--faint); margin-left: var(--s); }
+
+.rel-link {
+  font-size: var(--f-s);
+  color: var(--info);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--info) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.nothing {
+  margin: var(--l) 0;
+  font-size: var(--f-body);
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 /* ── Тренажёр ──────────────────────────────────────────────────────────── */

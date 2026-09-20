@@ -86,3 +86,49 @@ describe('как карты называются вслух', () => {
     }
   })
 })
+
+describe('связи словаря', () => {
+  it('выведены из текстов, а не размечены руками', async () => {
+    const { relationsFor } = await import('./relations')
+    const { GLOSSARY } = await import('../engine/glossary')
+    // Связь существует тогда и только тогда, когда статья упоминает другую.
+    const flop = GLOSSARY.find((t) => t.term === 'Флоп')!
+    const rel = relationsFor(flop.id)
+    expect(rel.usedIn.length).toBeGreaterThan(0)
+    for (const other of rel.usedIn) {
+      const text = `${other.definition} ${other.example}`.toLowerCase()
+      expect(text).toMatch(/флоп/)
+    }
+  })
+
+  it('статья не ссылается сама на себя', async () => {
+    const { relationsFor } = await import('./relations')
+    const { GLOSSARY } = await import('../engine/glossary')
+    for (const term of GLOSSARY) {
+      const { leansOn, usedIn } = relationsFor(term.id)
+      expect(leansOn.some((t) => t.id === term.id)).toBe(false)
+      expect(usedIn.some((t) => t.id === term.id)).toBe(false)
+    }
+  })
+
+  it('связи двусторонние: если А объясняет Б, то Б опирается на А', async () => {
+    const { relationsFor } = await import('./relations')
+    const { GLOSSARY } = await import('../engine/glossary')
+    for (const term of GLOSSARY) {
+      for (const other of relationsFor(term.id).leansOn) {
+        expect(relationsFor(other.id).usedIn.map((t) => t.id)).toContain(term.id)
+      }
+    }
+  })
+
+  it('граф покрывает словарь, а не пару статей', async () => {
+    const { relationsFor } = await import('./relations')
+    const { GLOSSARY } = await import('../engine/glossary')
+    const connected = GLOSSARY.filter((t) => {
+      const r = relationsFor(t.id)
+      return r.leansOn.length + r.usedIn.length > 0
+    })
+    // Без густого графа выбранная структура пустеет — это её условие жизни.
+    expect(connected.length / GLOSSARY.length).toBeGreaterThan(0.85)
+  })
+})
