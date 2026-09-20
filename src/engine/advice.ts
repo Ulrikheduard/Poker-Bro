@@ -27,8 +27,13 @@ export const ACTION_TITLE: Record<AdviceAction, string> = {
 }
 
 export type AdviceStrength = 'clear' | 'close' | 'marginal'
+/**
+ * Насколько решение держится на числах. `close` — перевес есть, но небольшой;
+ * «с запасом» здесь стояло по ошибке и читалось как самый уверенный из трёх,
+ * хотя это середина.
+ */
 export const STRENGTH_TITLE: Record<AdviceStrength, string> = {
-  clear: 'уверенно', close: 'с запасом', marginal: 'на грани',
+  clear: 'уверенно', close: 'небольшой перевес', marginal: 'на грани',
 }
 
 /**
@@ -141,8 +146,10 @@ function decide(
   if (odds.toCall > 0) {
     const need = requiredEquity(odds)
     const ev = callEV(odds, e)
-    reasons.push(`Шансы банка ${oddsRatio(odds)} — колл окупается, если такая раздача выигрывается хотя бы в ${percent(need)} случаев`)
-    reasons.push(`Вы выигрываете в ${percent(e)} случаев: это на ${percent(Math.abs(e - need))} ${e >= need ? 'выше' : 'ниже'} порога`)
+    reasons.push(`Шансы банка ${oddsRatio(odds)} — колл окупается, если ваша доля банка хотя бы ${percent(need)}`)
+    // Оба числа названы полностью, без вычитания: разница долей измеряется
+    // в процентных пунктах, а «на 24,3 % выше» читается как проценты и врёт.
+    reasons.push(`Ваша доля банка ${percent(e)} при пороге ${percent(need)}`)
     reasons.push(`В среднем такой колл приносит ${ev >= 0 ? '+' : ''}${chips(ev)} за раздачу`)
 
     if (draw && street !== 'river' && draw.strongOuts > 0) {
@@ -159,21 +166,21 @@ function decide(
     if (e >= 0.68) {
       return {
         action: 'raise', strength: e >= 0.78 ? 'clear' : 'close',
-        headline: `Рейз: вы впереди в ${percent(e)} случаев, а хватило бы ${percent(need)}`,
+        headline: `Рейз: ваша доля банка ${percent(e)}, а хватило бы ${percent(need)}`,
         reasons, sizing: (texture?.wetness ?? 0.3) > 0.5 ? 0.75 : 0.6,
       }
     }
     if (e >= need + 0.05) {
       return {
         action: 'call', strength: 'clear',
-        headline: `Колл: шансов на ${percent(e - need)} больше, чем нужно`,
+        headline: `Колл: ваша доля банка ${percent(e)}, а хватило бы ${percent(need)}`,
         reasons, sizing: null,
       }
     }
     if (e >= need) {
       return {
         action: 'call', strength: 'marginal',
-        headline: `Колл на грани: всего на ${percent(e - need)} выше порога`,
+        headline: `Колл на грани: доля банка ${percent(e)} при пороге ${percent(need)}`,
         reasons: [...reasons, 'Здесь расчёт уже почти ничего не решает — важнее импл-оддсы и то, насколько понятен оппонент'],
         sizing: null,
       }
@@ -190,7 +197,7 @@ function decide(
     }
     return {
       action: 'fold', strength: e < need - 0.1 ? 'clear' : 'close',
-      headline: `Фолд: не хватает ${percent(need - e)} до окупаемости`,
+      headline: `Фолд: ваша доля банка ${percent(e)}, а нужно ${percent(need)}`,
       reasons, sizing: null,
     }
   }
@@ -208,7 +215,7 @@ function decide(
   const wetness = texture?.wetness ?? 0.3
   const size = wetness > 0.55 ? 0.75 : wetness > 0.25 ? 0.6 : 0.33
   const freq = frequencies(odds.pot * size, odds.pot)
-  reasons.push(`Вы выигрываете в ${percent(e)} случаев ${input.opponents === 1 ? 'против одного оппонента' : `против ${input.opponents} оппонентов`}`)
+  reasons.push(`Ваша доля банка ${percent(e)} ${input.opponents === 1 ? 'против одного оппонента' : `против ${input.opponents} оппонентов`}`)
   if (texture) reasons.push(`Доска ${texture.summary} — под неё подходит ставка в ${Math.round(size * 100)} % банка`)
   reasons.push(`Такая ставка окупится даже блефом, если оппонент сбросит хотя бы в ${percent(bluffBreakEven(freq))} случаев`)
   reasons.push(`Чтобы ваши ставки не стали выгодными с любыми картами, оппоненту нужно продолжать с ${percent(minimumDefence(freq))} своих рук`)
@@ -224,7 +231,7 @@ function decide(
   if (e >= 0.65) {
     return {
       action: 'bet', strength: 'clear',
-      headline: `Ставка: вы впереди в ${percent(e)} случаев, пора забирать деньги`,
+      headline: `Ставка: ваша доля банка ${percent(e)}, пора забирать деньги`,
       reasons, sizing: size,
     }
   }
@@ -245,7 +252,7 @@ function decide(
   }
   return {
     action: 'check', strength: 'clear',
-    headline: `Чек: с ${percent(e)} ставить рано`,
+    headline: `Чек: с долей банка ${percent(e)} ставить рано`,
     reasons, sizing: null,
   }
 }

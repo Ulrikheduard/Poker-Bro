@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Card, FULL_DECK } from '../../engine/cards'
-import { type SpotAnalysis, ACTION_TITLE, STREET_TITLE, streetFor } from '../../engine/advice'
+import { type SpotAnalysis, ACTION_TITLE, STREET_TITLE, STRENGTH_TITLE, streetFor } from '../../engine/advice'
 import { topPercentRange } from '../../engine/notation'
 import { readBoard } from '../../engine/texture'
 import { DRAW_TITLE } from '../../engine/draws'
@@ -123,6 +123,13 @@ export function Solver() {
   const [working, setWorking] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const lastAction = useRef<string | null>(null)
+
+  // Банк задан вместе со ставкой оппонента, значит ставка не может его
+  // превышать. Иначе банк до неё уходит в минус, и «шансы банка 0,7 : 1»
+  // описывают раздачу, которой не бывает.
+  useEffect(() => {
+    if (toCall > pot) setToCall(pot)
+  }, [toCall, pot])
 
   useEffect(() => {
     saveSpot({ hole, board, pot, toCall, stack, opponents, villain })
@@ -306,7 +313,7 @@ export function Solver() {
 
       <Panel title="Ситуация">
         <Stepper label="Банк со ставкой" value={pot} step={10} onChange={setPot} />
-        <Stepper label="Доколлировать" value={toCall} step={10} onChange={setToCall} />
+        <Stepper label="Доколлировать" value={toCall} step={10} max={pot} onChange={setToCall} />
         {/* Договорённость о банке решает всё: с «банком до ставки» шансы
             выходят 2,0 : 1 вместо 3 : 1, и человек об этом не узнает.
             Поэтому она не в примечании, а прямо под шагами, с примером. */}
@@ -360,8 +367,9 @@ function Verdict({ analysis: a }: { analysis: SpotAnalysis }) {
           <span className="size num">{Math.round(a.advice.sizing * 100)} % банка</span>
         )}
         <span style={{ flex: 1 }} />
-        <Chip text={a.advice.strength === 'clear' ? 'уверенно' : a.advice.strength === 'close' ? 'с запасом' : 'на грани'}
-          tint="var(--faint)" />
+        {/* Карта названий одна на движок и экран: раньше здесь лежал её дубль,
+            и «с запасом» разъехалось с тем, что значит strength. */}
+        <Chip text={STRENGTH_TITLE[a.advice.strength]} tint="var(--muted)" />
       </div>
       <div>{a.advice.headline}</div>
       <Outcomes equity={a.equity} />
@@ -405,6 +413,14 @@ function Outcomes({ equity }: { equity: SpotAnalysis['equity'] }) {
         {splits && <>, ещё <b className="num">{tie}</b> {plural(tie, ['раз', 'раза', 'раз'])} разделите банк поровну</>}
         {' '}и проиграете <b className="num">{lose}</b>.
       </p>
+      {/* Над этим блоком стоит доля банка, и без связки два числа выглядели
+          противоречием: «67 %» над «выиграете 63». Правило названо словами,
+          а не пересчитано, — иначе округление до целых само себе противоречит. */}
+      {splits && (
+        <p className="plain-note">
+          Доля банка считается отсюда: все выигрыши плюс половина делёжек.
+        </p>
+      )}
       {splits && (
         <Note title="Когда банк делится">
           {'Масть в холдеме не решает ничего. Если у вас и у оппонента лучшие пять карт равны по силе, спорить больше нечем — банк делится поровну, это называют сплитом.\n\n'
@@ -418,7 +434,12 @@ function Outcomes({ equity }: { equity: SpotAnalysis['equity'] }) {
 
 function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
   const ev = callEV(a.potOdds, a.equity.equity)
-  const freq = frequencies(a.potOdds.pot * 0.66, a.potOdds.pot)
+  // Банк здесь уже вместе со ставкой оппонента, а доля защиты считается
+  // от банка до неё.
+  const potBeforeBet = a.potOdds.pot - a.potOdds.toCall
+  const defence = a.potOdds.toCall > 0 && potBeforeBet > 0
+    ? minimumDefence(frequencies(a.potOdds.toCall, potBeforeBet))
+    : null
   return (
     <Panel>
       <div className="tiles">
@@ -442,10 +463,16 @@ function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
             caption={ev >= 0 ? 'столько приносит за раздачу' : 'столько теряет за раздачу'} />
         </div>
       )}
-      <div className="tiles">
-        <Tile label="Если он поставит 2/3 банка" value={percent(minimumDefence(freq), 0)}
-          tint="var(--muted)" caption="столько рук вам придётся не сбрасывать" />
-      </div>
+      {/* Раньше эта плитка считала защиту от выдуманной ставки в 2/3 банка
+          и потому показывала 60 % всегда — при любой руке, банке и стеке.
+          Теперь она про ставку, которая действительно стоит перед вами,
+          и появляется только когда такая ставка есть. */}
+      {defence != null && (
+        <div className="tiles">
+          <Tile label="Нельзя сбрасывать" value={percent(defence, 0)} tint="var(--muted)"
+            caption="иначе его блеф окупится с любыми картами" />
+        </div>
+      )}
     </Panel>
   )
 }
@@ -496,10 +523,12 @@ function Reasons({ analysis: a }: { analysis: SpotAnalysis }) {
   )
 }
 
-function Stepper({ label, value, step, onChange }: {
+function Stepper({ label, value, step, max, onChange }: {
   label: string
   value: number
   step: number
+  /** Верхний предел. Ставка не может быть больше банка: банк её уже включает. */
+  max?: number
   /**
    * Именно сеттер состояния, а не `(v: number) => void`. По шагу банка
    * жмут часто и подряд, а React объединяет такие нажатия в одну перерисовку:
@@ -520,8 +549,9 @@ function Stepper({ label, value, step, onChange }: {
         }}><IconMinus /></button>
         <span className="value num">{chips(value)}</span>
         <button type="button" className="press-s hit" aria-label="Увеличить" onClick={() => {
+          if (max != null && value >= max) { Haptics.limit(); return }
           Haptics.tap()
-          onChange((prev) => prev + step)
+          onChange((prev) => (max != null ? Math.min(max, prev + step) : prev + step))
         }}><IconPlus /></button>
       </div>
     </div>
