@@ -1,12 +1,14 @@
-import { type Card, FULL_DECK } from '../../engine/cards'
-import { evaluate, CATEGORY_TITLE, STRAIGHT } from '../../engine/evaluator'
-import { analyseDraws } from '../../engine/draws'
-import { ALL_HAND_CLASSES, cardPairs } from '../../engine/range'
 import {
-  OPEN_RAISE, FACING_OPEN, actionFor, ACTION_TITLE, POSITION_TITLE, POSITION_HINT,
+  type Card, FULL_DECK, RANK_SPOKEN, RANK_GENITIVE, RANK_MANY_GENITIVE, cardLabel, cardSymbol,
+} from '../../engine/cards'
+import { type HandValue, evaluate, CATEGORY_TITLE, STRAIGHT, TWO_PAIR } from '../../engine/evaluator'
+import { type DrawKind, analyseDraws } from '../../engine/draws'
+import { type HandClass, ALL_HAND_CLASSES, cardPairs, isPair } from '../../engine/range'
+import {
+  OPEN_RAISE, FACING_OPEN, actionFor, ACTION_TITLE, ACTION_PLAIN, POSITION_ON, POSITION_HINT,
 } from '../../engine/charts'
-import { potOdds, requiredEquity, exactOutsEquity, quickEquity } from '../../engine/odds'
-import { percent, chips, outsWord } from '../format'
+import { exactOutsEquity, quickEquity } from '../../engine/odds'
+import { percent, plural, outsWord } from '../format'
 
 /**
  * Вопросы тренажёра. Вынесены из экрана, потому что проверяются сверками:
@@ -14,13 +16,63 @@ import { percent, chips, outsWord } from '../format'
  * автор вопроса. Раздаём из колоды честно и спрашиваем оценщик.
  */
 
-export type Mode = 'showdown' | 'preflop' | 'odds'
+export type Mode = 'showdown' | 'preflop' | 'outs'
 
 export const MODES: Array<{ value: Mode; label: string; hint: string }> = [
-  { value: 'showdown', label: 'Кто сильнее', hint: 'Две руки на одной доске. Какая из них выигрывает?' },
-  { value: 'preflop', label: 'До флопа', hint: 'Ваша позиция, ситуация за столом и две карты. Что делать?' },
-  { value: 'odds', label: 'Шанс', hint: 'Видите руку и доску. Хватает ли шансов, чтобы уравнять ставку?' },
+  {
+    value: 'showdown',
+    label: 'Кто сильнее',
+    hint: 'Две руки на одной доске. Посмотрите, какая из них выигрывает.',
+  },
+  {
+    value: 'preflop',
+    label: 'До флопа',
+    hint: 'Вам раздали две карты, общих карт ещё нет. Решите, что делать: повысить, уравнять или сбросить.',
+  },
+  {
+    value: 'outs',
+    label: 'Ауты',
+    hint: 'Руки пока нет, но она может собраться. Посчитайте, сколько карт её достроит.',
+  },
 ]
+
+/**
+ * Уровень сложности. Раздача всё так же раздаётся из честной колоды — уровень
+ * не подкручивает карты, а отбирает, какие раздачи показывать: на лёгком
+ * комбинации далеки друг от друга, на сложном они одинаковые и спор решают
+ * старшинство и кикер.
+ *
+ * Уровень есть только у «Кто сильнее»: там разница в трудности задаётся самой
+ * раздачей. В двух других режимах трудность задают карты, и делить их
+ * на ступени было бы притворством.
+ */
+export type Level = 'easy' | 'normal' | 'hard'
+
+export const LEVELS: Array<{ value: Level; label: string; hint: string }> = [
+  {
+    value: 'easy',
+    label: 'Просто',
+    hint: 'Комбинации сильно разные — достаточно помнить порядок старшинства.',
+  },
+  {
+    value: 'normal',
+    label: 'Средне',
+    hint: 'Комбинации соседние: что выше — стрит или флеш, тройка или две пары.',
+  },
+  {
+    value: 'hard',
+    label: 'Сложно',
+    hint: 'Комбинация у обоих одна и та же. Решают старшинство, кикер — или банк делится.',
+  },
+]
+
+export const LEVEL_LABEL: Record<Level, string> = {
+  easy: 'Просто', normal: 'Средне', hard: 'Сложно',
+}
+
+/** Следующая ступень вверх. `null` — выше некуда. */
+export const harderLevel = (level: Level): Level | null =>
+  level === 'easy' ? 'normal' : level === 'normal' ? 'hard' : null
 
 /** Кадр раздачи: то, что человек видит на столе, без слов. */
 export interface Deal {
@@ -28,12 +80,9 @@ export interface Deal {
   hands: Card[][]
   /** Подписи к рукам. Пусто — рука одна и она ваша, подпись не нужна. */
   handLabels: string[]
-  /** Банк уже вместе со ставкой оппонента — та же договорённость, что в odds.ts. */
-  pot?: number
-  bet?: number
-  /** Позиция героя, расшифрованная: «Катофф (CO)», а не «CO». */
+  /** Где вы сидите, целой фразой: склонять название позиции нечем. */
   position?: string
-  /** Кто открыл до нас. Отдельной строкой: склонять названия позиций нечем. */
+  /** Что случилось до вас — тоже фразой, по той же причине. */
   opener?: string
 }
 
@@ -65,7 +114,8 @@ const shuffled = () => {
 
 const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)]
 
-const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+/** «A♠» — то, как карта подписана на самой карте, без разнобоя в обозначениях. */
+const cardText = (card: Card) => cardLabel(card) + cardSymbol(card)
 
 /**
  * Какие пять карт из семи реально играют. Оценщик возвращает силу руки одним
@@ -90,20 +140,57 @@ export function bestFive(cards: Card[]): Card[] {
   return chosen
 }
 
-export function makeShowdown(): Question {
-  const deck = shuffled()
-  const board = deck.slice(0, 5)
-  const a = deck.slice(5, 7)
-  const b = deck.slice(7, 9)
-  const va = evaluate([...a, ...board])
-  const vb = evaluate([...b, ...board])
+/**
+ * Что решило спор двух одинаковых комбинаций. Оценщик хранит разрешение
+ * в `ranks`: первое расхождение и есть та карта, на которой руки разошлись.
+ * Без этой строки сложный уровень превращается в угадайку — видно, что
+ * «пара и пара», и непонятно, почему одна из них выиграла.
+ */
+function tieBreak(win: HandValue, lose: HandValue): string {
+  const index = win.ranks.findIndex((rank, i) => rank !== lose.ranks[i])
+  if (index < 0) return ''
+  // «Против» требует родительного: «туз против четвёрки», а не «четвёрка».
+  const pair = `${RANK_SPOKEN[win.ranks[index]]} против ${RANK_GENITIVE[lose.ranks[index]] ?? '—'}`
+  if (index === 0) return `Комбинация у обоих одна и та же — решило старшинство: ${pair}.`
+  if (win.category === TWO_PAIR && index === 1) {
+    return `Старшая пара одинаковая — спор решила вторая: ${pair}.`
+  }
+  return `Комбинация одна и та же, старшие карты тоже — решил кикер: ${pair}.`
+}
+
+/** Подходит ли пара рук выбранному уровню. */
+function fitsLevel(a: HandValue, b: HandValue, level: Level): boolean {
+  const gap = Math.abs(a.category - b.category)
+  if (level === 'easy') return gap >= 2
+  if (level === 'normal') return gap === 1
+  return gap === 0
+}
+
+export function makeShowdown(level: Level = 'normal'): Question {
+  // Карты раздаются из честной колоды, а уровень только отбирает раздачи.
+  // Подходящая находится за считаные попытки: на сложном уровне совпадение
+  // категорий — обычное дело, на лёгком большой разрыв тоже не редкость.
+  let deck = shuffled()
+  let board = deck.slice(0, 5)
+  let a = deck.slice(5, 7)
+  let b = deck.slice(7, 9)
+  let va = evaluate([...a, ...board])
+  let vb = evaluate([...b, ...board])
+  for (let attempt = 0; attempt < 600 && !fitsLevel(va, vb, level); attempt++) {
+    deck = shuffled()
+    board = deck.slice(0, 5)
+    a = deck.slice(5, 7)
+    b = deck.slice(7, 9)
+    va = evaluate([...a, ...board])
+    vb = evaluate([...b, ...board])
+  }
+
   const correct = va.score > vb.score ? 0 : vb.score > va.score ? 1 : 2
 
   // Победившая комбинация — та, которую стоит показать. При ничьей играют
   // одни и те же пять карт с доски, поэтому берём любую из рук.
   const winner = correct === 1 ? b : a
   const winnerValue = correct === 1 ? vb : va
-
   const loserValue = correct === 1 ? va : vb
   const sameCategory = va.category === vb.category
 
@@ -116,14 +203,14 @@ export function makeShowdown(): Question {
       + (sameCategory
         // Комбинация одна и та же — решает старшинство внутри неё, и это
         // ровно тот случай, где новичок ошибается чаще всего.
-        ? `Комбинация одна и та же — решает старшинство карт.`
+        ? tieBreak(winnerValue, loserValue)
         : `${CATEGORY_TITLE[winnerValue.category]} выше, чем ${CATEGORY_TITLE[loserValue.category].toLowerCase()}.`)
 
   return {
     mode: 'showdown',
-    prompt: 'Кто выигрывает?',
+    prompt: 'Чья рука сильнее?',
     deal: { board, hands: [a, b], handLabels: ['Первая рука', 'Вторая рука'] },
-    options: ['Первая рука', 'Вторая рука', 'Ничья'],
+    options: ['Первая рука', 'Вторая рука', 'Ничья, банк пополам'],
     correct,
     explanation,
     // Обе комбинации в именительном: склонять их нечем, а «бьёт старшую карту —
@@ -139,6 +226,14 @@ export function makeShowdown(): Question {
   }
 }
 
+/** «Пара семёрок», «Одномастные туз и король» — запись AKs словами. */
+function handPlain(hand: HandClass): string {
+  if (isPair(hand)) return `Пара ${RANK_MANY_GENITIVE[hand.high]}`
+  const high = RANK_SPOKEN[hand.high]
+  const low = RANK_SPOKEN[hand.low]
+  return `${hand.suited ? 'Одномастные' : 'Разномастные'} ${high} и ${low}`
+}
+
 export function makePreflop(): Question {
   const spot = pick([...OPEN_RAISE, ...FACING_OPEN])
   const hand = pick(ALL_HAND_CLASSES)
@@ -147,35 +242,49 @@ export function makePreflop(): Question {
   const options: Array<'raise' | 'call' | 'fold'> = ['raise', 'call', 'fold']
   return {
     mode: 'preflop',
-    prompt: spot.versus ? 'Соперник открыл. Что делаете?' : 'До вас все сбросили. Что делаете?',
+    // «Соперник открылся» за столом понимают все, но человек, который учится
+    // по этому экрану, слышит такое слово впервые. Говорим, что именно
+    // произошло: кто-то поставил больше блайнда, и теперь ход ваш.
+    prompt: spot.versus
+      ? 'Игрок до вас повысил ставку. Что делаете?'
+      : 'Все до вас сбросили карты. Что делаете?',
     detail: POSITION_HINT[spot.hero],
     deal: {
       board: [],
       hands: [[c1, c2]],
       handLabels: [],
-      position: POSITION_TITLE[spot.hero],
-      opener: spot.versus ? POSITION_TITLE[spot.versus] : undefined,
+      position: `Вы ${POSITION_ON[spot.hero]}`,
+      opener: spot.versus ? `Ставку повысил игрок ${POSITION_ON[spot.versus]}` : 'До вас все сбросили карты',
     },
-    options: options.map((a) => ACTION_TITLE[a]),
+    // Термин и перевод рядом: за столом говорят «рейз», но нажимать на кнопку
+    // придётся раньше, чем человек дойдёт до словаря.
+    options: options.map((a) => `${ACTION_TITLE[a]} — ${ACTION_PLAIN[a]}`),
     correct: options.indexOf(action),
-    explanation: `${hand.notation} — ${ACTION_TITLE[action].toLowerCase()}.\n\n${spot.note}`,
-    label: `${hand.notation} — ${POSITION_TITLE[spot.hero]}`,
+    explanation:
+      `${handPlain(hand)} — в покерной записи ${hand.notation}.\n`
+      + `Правильный ход: ${ACTION_TITLE[action].toLowerCase()}, то есть ${ACTION_PLAIN[action]}.\n\n`
+      + spot.note,
+    label: `${hand.notation}, вы ${POSITION_ON[spot.hero]}`,
   }
 }
 
-const POTS = [60, 80, 100, 120, 150, 200]
-const BET_FRACTIONS = [0.33, 0.5, 0.66, 0.75, 1]
-
-/** Дро, ради которых и задаётся вопрос: они доезжают до стрита и выше. */
-const CHASED = new Set(['flush', 'straightFlush', 'straight'])
+/**
+ * Комбинации, ради которых и считают ауты. Пара и две пары сюда не входят:
+ * их «ауты» слишком часто оказываются картой, которая помогает и оппоненту,
+ * а вопрос должен иметь один честный ответ.
+ */
+const OUTS_TARGETS: Array<{ kind: DrawKind; question: string; short: string }> = [
+  { kind: 'flush', question: 'флеш', short: 'Флеш' },
+  { kind: 'straight', question: 'стрит', short: 'Стрит' },
+]
 
 /**
- * «Шанс». Число аутов больше не выдаётся в условии — их считает человек,
- * а сверяет `analyseDraws`, перебирая колоду. Размер ставки подбирается так,
- * чтобы порог оказался рядом с эквити: иначе почти все вопросы решаются
- * не счётом, а на глаз.
+ * «Ауты». Человек считает сам: сколько карт в колоде достроит руку
+ * до названной комбинации. Ответ сверяет `analyseDraws`, перебирая колоду
+ * карта за картой, — поэтому «флеш-дро = 9» здесь не подсказка: если две
+ * карты масти уже на доске, аутов будет восемь, и заученное число соврёт.
  */
-export function makeOdds(): Question {
+export function makeOuts(): Question {
   for (let attempt = 0; attempt < 400; attempt++) {
     const deck = shuffled()
     const toCome = Math.random() < 0.5 ? 2 : 1
@@ -184,45 +293,47 @@ export function makeOdds(): Question {
 
     const analysis = analyseDraws(hole, board)
     if (!analysis) continue
-    // Готовая рука — это уже не вопрос о шансах доехать.
+    // Готовая рука — это уже не вопрос о том, чем она может достроиться.
     if (analysis.current.category >= STRAIGHT) continue
-    if (!analysis.draws.some((d) => CHASED.has(d.kind))) continue
 
-    const outs = analysis.strongOuts
-    if (outs < 4) continue
+    const available = OUTS_TARGETS
+      .map((t) => ({ target: t, draw: analysis.draws.find((d) => d.kind === t.kind) }))
+      .filter((x) => x.draw != null && x.draw.outs >= 3)
+    if (available.length === 0) continue
 
+    const { target, draw } = pick(available)
+    const outs = draw!.outs
+    const cards = [...draw!.cards].sort((x, y) => y - x)
     const equity = exactOutsEquity(outs, analysis.unseen, toCome)
-    const pot = pick(POTS)
-    const candidates = BET_FRACTIONS
-      .map((f) => Math.round(pot * f))
-      .map((bet) => ({ bet, need: requiredEquity(potOdds(pot + bet, bet)) }))
-      // Слишком очевидные и совсем пограничные вопросы одинаково бесполезны:
-      // в первых не надо считать, во вторых решает округление.
-      .filter(({ need }) => {
-        const gap = Math.abs(equity - need)
-        return gap >= 0.02 && gap <= 0.12
-      })
-    if (candidates.length === 0) continue
 
-    const { bet, need } = pick(candidates)
-    const pairing = analysis.boardPairing > 0
-      ? `\nКарты, спаривающие доску, в ауты не идут: такую пару получит и оппонент.`
-      : ''
+    // Варианты ответа — вокруг правильного, плюс то число, которое человек
+    // назовёт по заученной таблице. Ошибиться должно быть можно именно так,
+    // как ошибаются на самом деле, а не наугад.
+    const bait = target.kind === 'flush' ? 9 : 8
+    const candidates = [outs - 2, outs - 1, outs + 1, outs + 2, outs + 3, bait, bait - 4]
+      .filter((n) => n > 0 && n !== outs && n <= analysis.unseen)
+    const options = new Set<number>([outs])
+    while (options.size < 4 && candidates.length > 0) {
+      options.add(candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0])
+    }
+    // Колода не дала четырёх разумных вариантов — добираем соседними числами.
+    for (let n = outs + 4; options.size < 4; n++) options.add(n)
+
+    const sorted = [...options].sort((x, y) => x - y)
 
     return {
-      mode: 'odds',
-      prompt: 'Хватает ли шансов на колл?',
-      detail: 'Считаем только прямые шансы — будущие ставки не учитываем.',
-      deal: { board, hands: [hole], handLabels: [], pot: pot + bet, bet },
-      options: ['Колл', 'Фолд'],
-      correct: equity >= need ? 0 : 1,
+      mode: 'outs',
+      prompt: `Сколько карт даёт вам ${target.question}?`,
+      detail: 'Считайте карты, которых вы ещё не видели: и в колоде, и у соперников.',
+      deal: { board, hands: [hole], handLabels: [] },
+      options: sorted.map((n) => `${n} ${plural(n, ['карта', 'карты', 'карт'])}`),
+      correct: sorted.indexOf(outs),
       explanation:
-        `Нужно ${percent(need)} — платите ${chips(bet)}, чтобы выиграть ${chips(pot + bet)}.\n`
-        + `У вас ${analysis.summary}: ${outs} ${outsWord(outs)} из ${analysis.unseen}, `
-        + `${toCome === 2 ? 'две карты' : 'одна карта'} впереди — это ${percent(equity)}.\n`
-        + `По правилу ${toCome === 2 ? '4' : '2'} в уме вышло бы ${percent(quickEquity(outs, toCome), 0)}.`
-        + pairing,
-      label: `${capitalise(analysis.summary)} — ${equity >= need ? 'колл' : 'фолд'}`,
+        `${target.short} закрывают ${outs} ${outsWord(outs)}: ${cards.map(cardText).join(', ')}.\n`
+        + `Невидимых карт ${analysis.unseen}, впереди `
+        + `${toCome === 2 ? 'две карты' : 'одна карта'} — это ${percent(equity)}.\n`
+        + `По правилу 2 и 4 в уме: ${outs} × ${toCome === 2 ? 4 : 2} ≈ ${percent(quickEquity(outs, toCome), 0)}.`,
+      label: `${target.short}: ${outs} ${outsWord(outs)}`,
       playing: [...hole, ...board],
     }
   }
@@ -232,6 +343,6 @@ export function makeOdds(): Question {
   return makeShowdown()
 }
 
-export function makeQuestion(mode: Mode): Question {
-  return mode === 'showdown' ? makeShowdown() : mode === 'preflop' ? makePreflop() : makeOdds()
+export function makeQuestion(mode: Mode, level: Level = 'normal'): Question {
+  return mode === 'showdown' ? makeShowdown(level) : mode === 'preflop' ? makePreflop() : makeOuts()
 }

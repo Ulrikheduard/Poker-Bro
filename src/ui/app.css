@@ -723,6 +723,25 @@
   background: var(--surface);
 }
 .summary-note { margin: 0; font-size: var(--f-s); color: var(--muted); }
+.summary-note p { margin: 0; }
+
+/* Переход на уровень выше — не главное действие экрана: главное «Ещё десять».
+   Поэтому обводка, а не заливка: предложение, а не команда. */
+.level-up {
+  align-self: flex-start;
+  margin-top: var(--s);
+  min-height: var(--tap);
+  padding: 0 var(--l);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--info);
+  color: var(--info);
+  font-size: var(--f-s);
+  font-weight: 600;
+}
+
+/* У «Кто сильнее» переключателей два подряд — режим и уровень. Второй тише:
+   он уточняет первый, а не спорит с ним за внимание. */
+.trainer-top .segmented + .segmented button { font-size: var(--f-s); }
 
 .primary {
   width: 100%;
