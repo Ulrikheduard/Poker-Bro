@@ -547,29 +547,42 @@
 /* ── Связи ─────────────────────────────────────────────────────────────── */
 
 /* Связь существует, если статья действительно упоминает другую: список
-   выведен из текстов, а не размечен руками. */
+   выведен из текстов, а не размечен руками.
+
+   Строка набрана тихо намеренно. Синие подчёркнутые ссылки в конце каждой
+   статьи складывались в сетку, которая читалась раньше определений, —
+   и словарь превращался в оглавление самого себя. Здесь это подпись
+   под статьёй: заметная, когда её ищут, и незаметная, когда читают. */
 .rel {
   margin: var(--m) 0 0;
-  font-size: var(--f-s);
+  font-size: var(--f-xs);
   line-height: 1.7;
   color: var(--faint);
 }
 .rel-label {
-  font-size: var(--f-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   margin-right: var(--s);
 }
 .rel-sep { color: var(--stroke); margin: 0 var(--xs); }
-.rel-rest { color: var(--faint); margin-left: var(--s); }
 
 .rel-link {
-  font-size: var(--f-s);
-  color: var(--info);
+  font-size: inherit;
+  color: var(--muted);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--info) 45%, transparent);
+  text-decoration-style: dotted;
+  text-decoration-color: var(--stroke);
   text-underline-offset: 3px;
+}
+
+/* Внутри «ничего не нашлось» та же кнопка — единственное действие в абзаце,
+   и там она обязана выглядеть действием. */
+.nothing .rel-link {
+  font-size: var(--f-body);
+  color: var(--info);
+  text-decoration-style: solid;
+  text-decoration-color: color-mix(in srgb, var(--info) 45%, transparent);
 }
 
 .nothing {

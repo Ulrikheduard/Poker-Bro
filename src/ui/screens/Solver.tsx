@@ -293,7 +293,7 @@ export function Solver() {
         <Panel>
           <b>Выберите две карты руки</b>
           <span className="hint">
-            Стол можно оставить пустым — тогда посчитается шанс до флопа.
+            Стол можно оставить пустым — тогда расчёт будет для префлопа.
             Добавляйте карты по мере того, как их открывает дилер.
           </span>
         </Panel>
@@ -319,7 +319,7 @@ export function Solver() {
 
       <Panel title="Ситуация">
         <Stepper label="Банк со ставкой" value={pot} step={10} onChange={setPot} />
-        <Stepper label="Доколлировать" value={toCall} step={10} max={pot} onChange={setToCall} />
+        <Stepper label="Сколько доложить" value={toCall} step={10} max={pot} onChange={setToCall} />
         {/* Договорённость о банке решает всё: с «банком до ставки» шансы
             выходят 2,0 : 1 вместо 3 : 1, и человек об этом не узнает.
             Поэтому она не в примечании, а прямо под шагами, с примером. */}
@@ -340,9 +340,9 @@ export function Solver() {
           <span className="label">Рука оппонента</span>
           <Segmented options={VILLAINS} value={villain} onChange={setVillain} />
           <span className="hint">
-            «Любая» значит, что оппоненту мы приписываем случайные карты. Если он
-            играет осторожно и заходит только с сильными руками — выберите «Топ 20 %»
-            или «Топ 10 %», и ваши шансы окажутся ниже. Так честнее.
+            «Любая» значит, что мы приписываем оппоненту случайные карты. Если он
+            играет осторожно и входит в раздачу только с сильными руками — выберите
+            «Топ 20 %» или «Топ 10 %»: ваши шансы станут ниже, зато честнее.
           </span>
         </div>
       </Panel>
@@ -464,7 +464,7 @@ function Numbers({ analysis: a }: { analysis: SpotAnalysis }) {
         <div className="tiles">
           <Tile label="Шансы банка" value={oddsRatio(a.potOdds)} tint="var(--info)"
             caption={`нужно ${percent(requiredEquity(a.potOdds))}`} />
-          <Tile label="Колл в среднем" value={(ev >= 0 ? '+' : '') + chips(ev)}
+          <Tile label="Что приносит колл" value={(ev >= 0 ? '+' : '') + chips(ev)}
             tint={ev >= 0 ? 'var(--good)' : 'var(--bad)'}
             caption={ev >= 0 ? 'столько приносит за раздачу' : 'столько теряет за раздачу'} />
         </div>
@@ -501,7 +501,7 @@ function Draws({ analysis: a }: { analysis: SpotAnalysis }) {
       <hr style={{ border: 0, borderTop: '1px solid var(--stroke)', margin: 0 }} />
       <Row label="Всего помогает карт" value={`${draw.totalOuts} из ${draw.unseen}`} />
       {draw.boardPairing > 0 && (
-        <Row label="Спарят доску (не в счёт)" value={`${draw.boardPairing} карт`} tint="var(--faint)" />
+        <Row label="Спаривают доску — не ауты" value={`${draw.boardPairing} ${plural(draw.boardPairing, ['карта', 'карты', 'карт'])}`} tint="var(--faint)" />
       )}
       <Note>
         {'Ауты пересчитаны по колоде, а не взяты из таблицы: каждая невидимая карта подставляется к вашей руке, и проверяется, стала ли рука лучше. Карта, закрывающая и стрит, и флеш, засчитана один раз — по старшей из двух рук.\n\n'

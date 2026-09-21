@@ -8,7 +8,7 @@ import { PREFLOP_EQUITY } from '../../engine/strength'
 import { Panel, Tile, Segmented, Note } from '../components/kit'
 import { RangeGrid, RangeLegend } from '../components/RangeGrid'
 import { Linked } from '../components/Term'
-import { percent } from '../format'
+import { percent, plural } from '../format'
 
 const FILL: Record<string, string> = {
   raise: 'var(--good)', call: 'var(--info)', fold: 'var(--raised)',
@@ -49,7 +49,7 @@ export function Charts() {
             <span className="label">Ситуация</span>
             <Segmented
               options={spots.map((s, i) => ({
-                value: i, label: s.versus ? `vs ${POSITION_CODE[s.versus]}` : 'Открытие',
+                value: i, label: s.versus ? `Против ${POSITION_CODE[s.versus]}` : 'Открытие',
               }))}
               value={Math.min(index, spots.length - 1)}
               onChange={setIndex}
@@ -58,7 +58,7 @@ export function Charts() {
         )}
       </Panel>
 
-      <Panel title={spot.title} subtitle="Зелёное — повышать, синее — уравнивать, серое — сбрасывать. Нажмите на руку, чтобы прочитать про неё">
+      <Panel title={spot.title} subtitle="Зелёные руки повышаем, синие уравниваем, серые сбрасываем. Нажмите на руку, чтобы прочитать о ней.">
         <RangeGrid
           color={(notation) => FILL[actionFor(spot, notation)]}
           selected={selected}
@@ -90,19 +90,20 @@ function HandDetail({ notation, action }: { notation: string; action: 'raise' | 
 
   const description = (() => {
     if (isPair(hand)) {
-      return `Карманная пара. Собирает сет примерно в одном случае из восьми — ради этого её и коллируют.`
+      return 'Карманная пара: обе карты одного достоинства. Третья такая же приходит на стол примерно в одном случае из восьми — ради этого пару и разыгрывают.'
     }
     const gap = hand.high - hand.low
     const suit = hand.suited ? 'Одномастные' : 'Разномастные'
-    if (gap === 1) return `${suit} коннекторы. Играются ради стритов и флешей, а не ради пары.`
+    if (gap === 1) return `${suit} карты подряд — их называют коннекторами. Играют их ради стрита и флеша, а не ради пары.`
     if (hand.high === 14) {
-      return `${suit} с тузом. ` + (hand.suited
-        ? 'Одномастность добавляет флеш и примерно три процента эквити.'
-        : 'Без одномастности такая рука часто доминирована: против AK ваш туз не помогает.')
+      return `${suit} карты с тузом. ` + (hand.suited
+        ? 'Одна масть добавляет флеш и примерно три процента эквити.'
+        : 'Без общей масти такая рука часто уступает второй карте: против AK ваш туз не помогает ничем.')
     }
-    return `${suit}, разрыв ${gap - 1}. ` + (hand.suited
-      ? 'Одномастность даёт флеш-потенциал.'
-      : 'Разномастная рука с разрывом реализуется хуже всего.')
+    return `${suit} карты, между ними ${gap - 1} ${plural(gap - 1, ['пропущенная карта', 'пропущенные карты', 'пропущенных карт'])}. `
+      + (hand.suited
+        ? 'Общая масть оставляет надежду на флеш.'
+        : 'Разные масти и разрыв — так рука выигрывает реже всего.')
   })()
 
   return (
@@ -121,7 +122,7 @@ function HandDetail({ notation, action }: { notation: string; action: 'raise' | 
         <Tile label="Способов собрать" value={String(comboCount(hand))}
           caption={isPair(hand) ? 'у любой пары их 6' : hand.suited ? 'у одномастной руки 4' : 'у разномастной 12'} />
         {equity != null && (
-          <Tile label="Побед вслепую" value={percent(equity, 0)} tint="var(--info)"
+          <Tile label="Шансы на победу" value={percent(equity, 0)} tint="var(--info)"
             caption="если сыграть до конца против случайных карт" />
         )}
       </div>

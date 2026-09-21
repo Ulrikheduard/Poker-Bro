@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { linkTerms, termById } from './terms'
-import { GLOSSARY } from '../engine/glossary'
+import { GLOSSARY, searchGlossary } from '../engine/glossary'
 
 describe('связка текста со словарём', () => {
   it('находит термин и оставляет остальной текст нетронутым', () => {
@@ -130,5 +130,23 @@ describe('связи словаря', () => {
     })
     // Без густого графа выбранная структура пустеет — это её условие жизни.
     expect(connected.length / GLOSSARY.length).toBeGreaterThan(0.85)
+  })
+})
+
+describe('поиск по словарю', () => {
+  /** Статья называлась «Номиналы» — слова, которого за столом не говорят.
+   *  Ищут её как «натс», и найтись она обязана и по-русски, и по-английски. */
+  it('находит натс по названию, по английскому и по словам определения', () => {
+    const byTerm = searchGlossary('натс').map((t) => t.id)
+    expect(byTerm).toContain('hands.Натс')
+    expect(searchGlossary('nuts').map((t) => t.id)).toContain('hands.Натс')
+    expect(searchGlossary('сильнейшая').map((t) => t.id)).toContain('hands.Натс')
+  })
+
+  it('пустой запрос отдаёт весь словарь, а раздел его сужает', () => {
+    expect(searchGlossary('')).toHaveLength(GLOSSARY.length)
+    const hands = searchGlossary('', 'hands')
+    expect(hands.length).toBeGreaterThan(0)
+    for (const t of hands) expect(t.category).toBe('hands')
   })
 })

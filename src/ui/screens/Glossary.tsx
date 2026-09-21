@@ -15,32 +15,32 @@ import { Haptics } from '../haptics'
  * когда видно, что на нём бывает. Тому, кто сел разобраться, каждое нажатие
  * ради следующей строки мешает читать.
  *
- * Под статьёй — её связи: через что она объяснена и что объясняется через неё.
- * Переход по связи не уводит со страницы, а прокручивает к нужной статье
- * в этой же колонке и помечает её: нить читается, не выходя из документа.
+ * Под статьёй — короткая строка соседей. Двух списков здесь раньше было
+ * два — «через что объяснён» и «объясняет», — и на хабах вроде «бет» они
+ * разрастались на два десятка ссылок каждый. Читать статью становилось
+ * нечем: глаз цеплялся за синее, а не за определение. Направление связи
+ * читателю словаря не нужно — ему нужно, куда пойти дальше, поэтому строка
+ * одна и короткая.
  */
 
-/** Хабы вроде «бет» упоминаются два десятка раз: весь список стал бы стеной. */
-const MAX_LINKS = 8
+/** Пять соседей — столько помещается в строку и столько человек успевает взвесить. */
+const MAX_LINKS = 5
 
-function Relation({ label, terms, onJump }: {
-  label: string
+function Nearby({ terms, onJump }: {
   terms: GlossaryTerm[]
   onJump: (id: string) => void
 }) {
   if (terms.length === 0) return null
   const shown = terms.slice(0, MAX_LINKS)
-  const rest = terms.length - shown.length
   return (
     <p className="rel">
-      <span className="rel-label">{label}</span>
+      <span className="rel-label">рядом</span>
       {shown.map((t, i) => (
         <span key={t.id}>
           {i > 0 && <span className="rel-sep">·</span>}
           <button type="button" className="rel-link" onClick={() => onJump(t.id)}>{t.term}</button>
         </span>
       ))}
-      {rest > 0 && <span className="rel-rest">и ещё {rest}</span>}
     </p>
   )
 }
@@ -90,7 +90,7 @@ export function Glossary() {
         className="search"
         type="search"
         value={query}
-        placeholder="Термин, english или слово из определения"
+        placeholder="Название, английское слово или слово из определения"
         onChange={(e) => setQuery(e.target.value)}
       />
 
@@ -122,7 +122,11 @@ export function Glossary() {
         <section className="chapter" key={c}>
           <h2 className="running-head">{CATEGORY_TITLE[c]}</h2>
           {items.map((term) => {
+            // Сначала те, через которые статья объяснена: без них её не понять.
+            // Потом те, которые объясняются через неё. Повторы убираются —
+            // связь часто двусторонняя, и один и тот же термин стоял дважды.
             const { leansOn, usedIn } = relationsFor(term.id)
+            const nearby = [...leansOn, ...usedIn.filter((t) => !leansOn.includes(t))]
             return (
               <article
                 key={term.id}
@@ -140,8 +144,7 @@ export function Glossary() {
                 </h3>
                 <p className="entry-def">{term.definition}</p>
                 <p className="entry-example">{term.example}</p>
-                <Relation label="через что объяснён" terms={leansOn} onJump={jump} />
-                <Relation label="объясняет" terms={usedIn} onJump={jump} />
+                <Nearby terms={nearby} onJump={jump} />
               </article>
             )
           })}
