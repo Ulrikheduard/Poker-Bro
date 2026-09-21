@@ -99,7 +99,7 @@ describe('делёжка банка', () => {
       hole: parseCards('Ac Ad'), board: parseCards('As Kd 7h 3d 2c'),
       pot: 100, toCall: 0, effectiveStack: 900, opponents: 1, opponentRange: null,
     })
-    expect(a.draw?.current.title).toBe('Сет тузов')
+    expect(a.draw?.current.title).toBe('Тройка тузов')
     expect(a.boardPlays).toBe(false)
     expect(a.equity.win).toBeGreaterThan(0.95)
   })

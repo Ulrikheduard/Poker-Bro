@@ -13,13 +13,22 @@ export const DRAW_TITLE: Record<DrawKind, string> = {
   straightFlush: 'Стрит-флеш',
   flush: 'Флеш',
   straight: 'Стрит',
-  trips: 'Сет или каре',
+  trips: 'Тройка или каре',
   twoPair: 'Две пары',
   pair: 'Пара',
   overcards: 'Пара со старшей картой',
 }
 
-export interface Draw { kind: DrawKind; outs: number }
+export interface Draw {
+  kind: DrawKind
+  outs: number
+  /**
+   * Сами карты, а не только их число. Нужны там, где ауты приходится
+   * называть поимённо: «это червы — 2♥, 5♥, 6♥…». Число без карт остаётся
+   * утверждением на слово, а перебор их всё равно знает.
+   */
+  cards: Card[]
+}
 
 export interface DrawAnalysis {
   current: HandValue
@@ -54,7 +63,7 @@ export function analyseDraws(hole: Card[], board: Card[]): DrawAnalysis | null {
     return { current, draws: [], totalOuts: 0, strongOuts: 0, boardPairing: 0, unseen, summary: summarise([]) }
   }
 
-  const byKind = new Map<DrawKind, number>()
+  const byKind = new Map<DrawKind, Card[]>()
   let improving = 0, strong = 0, boardPairing = 0
   const boardRanks = new Set(board.map(cardRank))
   const holeRanks = new Set(hole.map(cardRank))
@@ -87,12 +96,14 @@ export function analyseDraws(hole: Card[], board: Card[]): DrawAnalysis | null {
     else if (after.category === TWO_PAIR) kind = 'twoPair'
     else if (after.category === PAIR) kind = rank > topBoard ? 'overcards' : 'pair'
     else continue
-    byKind.set(kind, (byKind.get(kind) ?? 0) + 1)
+    const bucket = byKind.get(kind)
+    if (bucket) bucket.push(card)
+    else byKind.set(kind, [card])
   }
 
   const draws: Draw[] = ORDER
-    .filter((k) => (byKind.get(k) ?? 0) > 0)
-    .map((k) => ({ kind: k, outs: byKind.get(k)! }))
+    .filter((k) => (byKind.get(k)?.length ?? 0) > 0)
+    .map((k) => ({ kind: k, outs: byKind.get(k)!.length, cards: byKind.get(k)! }))
 
   return { current, draws, totalOuts: improving, strongOuts: strong, boardPairing, unseen, summary: summarise(draws) }
 }

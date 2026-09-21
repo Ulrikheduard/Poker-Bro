@@ -39,7 +39,7 @@ describe('русский язык в числах и названиях', () => 
     // именительный там, где он и нужен
     expect(evaluate(parseCards('Ac Jd 9h 6s 3d')).title).toBe('Старшая карта — туз')
     expect(evaluate(parseCards('Ac Ad Kc 7d 2s')).title).toBe('Пара тузов')
-    expect(evaluate(parseCards('9c 9d 9h 6s 5c')).title).toBe('Сет девяток')
+    expect(evaluate(parseCards('9c 9d 9h 6s 5c')).title).toBe('Тройка девяток')
     expect(evaluate(parseCards('Kc Kd Kh Ks 5c')).title).toBe('Каре королей')
     expect(evaluate(parseCards('Ac Ad Ah Ks Kd')).title).toBe('Фулл-хаус, тузы на королях')
     expect(evaluate(parseCards('Ac Ad 9h 9s 5c')).title).toBe('Две пары, тузы и девятки')
