@@ -143,6 +143,14 @@ describe('поиск по словарю', () => {
     expect(searchGlossary('сильнейшая').map((t) => t.id)).toContain('hands.Натс')
   })
 
+  /** За столом говорят и «бомб-пот», и «бомпот». Вторая форма живёт
+   *  в определении, поэтому поиск находит статью и по ней. */
+  it('находит бомб-пот по обоим написаниям', () => {
+    expect(searchGlossary('бомб-пот').map((t) => t.id)).toContain('structure.Бомб-пот')
+    expect(searchGlossary('бомпот').map((t) => t.id)).toContain('structure.Бомб-пот')
+    expect(searchGlossary('bomb').map((t) => t.id)).toContain('structure.Бомб-пот')
+  })
+
   it('пустой запрос отдаёт весь словарь, а раздел его сужает', () => {
     expect(searchGlossary('')).toHaveLength(GLOSSARY.length)
     const hands = searchGlossary('', 'hands')

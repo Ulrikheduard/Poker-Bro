@@ -108,9 +108,9 @@ describe('чтение доски', () => {
 })
 
 describe('справочный материал', () => {
-  it('словарь: 73 термина, идентификаторы уникальны', () => {
-    expect(GLOSSARY.length).toBe(73)
-    expect(new Set(GLOSSARY.map((t) => t.id)).size).toBe(73)
+  it('словарь: 74 термина, идентификаторы уникальны', () => {
+    expect(GLOSSARY.length).toBe(74)
+    expect(new Set(GLOSSARY.map((t) => t.id)).size).toBe(74)
     for (const t of GLOSSARY) {
       expect(t.definition.length, t.term).toBeGreaterThan(20)
       expect(t.example.length, t.term).toBeGreaterThan(10)
