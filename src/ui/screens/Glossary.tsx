@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  type GlossaryCategory, type GlossaryTerm,
+  type GlossaryCategory,
   GLOSSARY_CATEGORIES, CATEGORY_TITLE, searchGlossary,
 } from '../../engine/glossary'
-import { relationsFor } from '../relations'
 import { Haptics } from '../haptics'
 
 /**
@@ -15,41 +14,17 @@ import { Haptics } from '../haptics'
  * когда видно, что на нём бывает. Тому, кто сел разобраться, каждое нажатие
  * ради следующей строки мешает читать.
  *
- * Под статьёй — короткая строка соседей. Двух списков здесь раньше было
- * два — «через что объяснён» и «объясняет», — и на хабах вроде «бет» они
- * разрастались на два десятка ссылок каждый. Читать статью становилось
- * нечем: глаз цеплялся за синее, а не за определение. Направление связи
- * читателю словаря не нужно — ему нужно, куда пойти дальше, поэтому строка
- * одна и короткая.
+ * Ссылок на другие статьи здесь нет. Под каждой статьёй стояла строка соседей,
+ * выведенная из текстов, — и она отнимала внимание у самих определений:
+ * читаешь словарь, а глаз ведёт по служебной строке. Термины связываются
+ * там, где человек встречает незнакомое слово за работой, — в тренажёре,
+ * разборе и чартах подчёркнутое слово открывает статью на месте. Внутри
+ * словаря он уже пришёл читать, и вести его отсюда некуда.
  */
-
-/** Пять соседей — столько помещается в строку и столько человек успевает взвесить. */
-const MAX_LINKS = 5
-
-function Nearby({ terms, onJump }: {
-  terms: GlossaryTerm[]
-  onJump: (id: string) => void
-}) {
-  if (terms.length === 0) return null
-  const shown = terms.slice(0, MAX_LINKS)
-  return (
-    <p className="rel">
-      <span className="rel-label">рядом</span>
-      {shown.map((t, i) => (
-        <span key={t.id}>
-          {i > 0 && <span className="rel-sep">·</span>}
-          <button type="button" className="rel-link" onClick={() => onJump(t.id)}>{t.term}</button>
-        </span>
-      ))}
-    </p>
-  )
-}
 
 export function Glossary() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<GlossaryCategory | null>(null)
-  const [landed, setLanded] = useState<string | null>(null)
-  const nodes = useRef(new Map<string, HTMLElement>())
 
   const sections = useMemo(() => (
     GLOSSARY_CATEGORIES
@@ -59,30 +34,6 @@ export function Glossary() {
   ), [query, category])
 
   const found = sections.reduce((sum, [, items]) => sum + items.length, 0)
-
-  /**
-   * Переход по связи. Если нужная статья отфильтрована — снимаем фильтры,
-   * иначе нажатие просто ничего не сделает, и человек решит, что связь битая.
-   */
-  const jump = useCallback((id: string) => {
-    Haptics.select()
-    const scroll = () => {
-      const node = nodes.current.get(id)
-      if (!node) return
-      // Отступ под липкий колонтитул задан в CSS через scroll-margin-top:
-      // браузер сам его учтёт, пересчитывать положение руками незачем.
-      // «Уменьшить движение» значит не «медленнее», а «без пути» — человек
-      // просит поставить на место, а не показывать дорогу.
-      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      node.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' })
-      setLanded(id)
-      window.setTimeout(() => setLanded((current) => (current === id ? null : current)), 1600)
-    }
-    if (nodes.current.has(id)) { scroll(); return }
-    setQuery('')
-    setCategory(null)
-    window.requestAnimationFrame(() => window.requestAnimationFrame(scroll))
-  }, [])
 
   return (
     <div className="lexicon">
@@ -111,7 +62,7 @@ export function Glossary() {
             ? <>По запросу «{query}» ничего нет{category !== null && <> в разделе «{CATEGORY_TITLE[category]}»</>}.</>
             : <>В разделе «{category !== null ? CATEGORY_TITLE[category] : ''}» пусто.</>}
           {category !== null && (
-            <> <button type="button" className="rel-link" onClick={() => { Haptics.select(); setCategory(null) }}>
+            <> <button type="button" className="text-link" onClick={() => { Haptics.select(); setCategory(null) }}>
               Искать во всём словаре
             </button></>
           )}
@@ -121,33 +72,16 @@ export function Glossary() {
       {sections.map(([c, items]) => (
         <section className="chapter" key={c}>
           <h2 className="running-head">{CATEGORY_TITLE[c]}</h2>
-          {items.map((term) => {
-            // Сначала те, через которые статья объяснена: без них её не понять.
-            // Потом те, которые объясняются через неё. Повторы убираются —
-            // связь часто двусторонняя, и один и тот же термин стоял дважды.
-            const { leansOn, usedIn } = relationsFor(term.id)
-            const nearby = [...leansOn, ...usedIn.filter((t) => !leansOn.includes(t))]
-            return (
-              <article
-                key={term.id}
-                id={`term-${term.id}`}
-                className={'entry' + (landed === term.id ? ' landed' : '')}
-                ref={(node) => {
-                  if (node) nodes.current.set(term.id, node)
-                  else nodes.current.delete(term.id)
-                }}
-                tabIndex={-1}
-              >
-                <h3 className="entry-head">
-                  <span className="entry-term">{term.term}</span>
-                  <span className="entry-en">{term.english}</span>
-                </h3>
-                <p className="entry-def">{term.definition}</p>
-                <p className="entry-example">{term.example}</p>
-                <Nearby terms={nearby} onJump={jump} />
-              </article>
-            )
-          })}
+          {items.map((term) => (
+            <article key={term.id} id={`term-${term.id}`} className="entry">
+              <h3 className="entry-head">
+                <span className="entry-term">{term.term}</span>
+                <span className="entry-en">{term.english}</span>
+              </h3>
+              <p className="entry-def">{term.definition}</p>
+              <p className="entry-example">{term.example}</p>
+            </article>
+          ))}
         </section>
       ))}
     </div>

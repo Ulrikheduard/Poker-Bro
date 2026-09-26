@@ -479,12 +479,9 @@
 .entry {
   position: relative;
   padding: var(--l) 0;
-  scroll-margin-top: 44px;
-  border-radius: var(--radius-s);
-  transition: background-color 1.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-/* Линейка отдельным слоем, а не рамкой: следуя закруглению, она читалась бы
-   как остаток коробки, а закругление нужно только подсветке прибытия. */
+/* Линейка отдельным слоем, а не рамкой: рамка вокруг статьи читалась бы
+   как коробка, а статья — это текст, а не карточка. */
 .entry::before {
   content: '';
   position: absolute;
@@ -495,13 +492,6 @@
   background: var(--stroke);
 }
 .chapter .entry:first-of-type::before { display: none; }
-
-/* Метка прибытия — единственное движение на экране. Она отвечает на вопрос
-   «куда меня перенесло» и гаснет сама, не требуя внимания. */
-.entry.landed {
-  background-color: color-mix(in srgb, var(--info) 13%, transparent);
-  transition: none;
-}
 
 .entry-head {
   margin: 0 0 var(--s);
@@ -544,45 +534,15 @@
   color: var(--muted);
 }
 
-/* ── Связи ─────────────────────────────────────────────────────────────── */
-
-/* Связь существует, если статья действительно упоминает другую: список
-   выведен из текстов, а не размечен руками.
-
-   Строка набрана тихо намеренно. Синие подчёркнутые ссылки в конце каждой
-   статьи складывались в сетку, которая читалась раньше определений, —
-   и словарь превращался в оглавление самого себя. Здесь это подпись
-   под статьёй: заметная, когда её ищут, и незаметная, когда читают. */
-.rel {
-  margin: var(--m) 0 0;
-  font-size: var(--f-xs);
-  line-height: 1.7;
-  color: var(--faint);
-}
-.rel-label {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-right: var(--s);
-}
-.rel-sep { color: var(--stroke); margin: 0 var(--xs); }
-
-.rel-link {
-  font-size: inherit;
-  color: var(--muted);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-decoration-color: var(--stroke);
-  text-underline-offset: 3px;
-}
-
-/* Внутри «ничего не нашлось» та же кнопка — единственное действие в абзаце,
-   и там она обязана выглядеть действием. */
-.nothing .rel-link {
+/* Единственная ссылка-кнопка в разделе: «Искать во всём словаре» в ответе
+   на пустой поиск. Ссылок между статьями в словаре нет — термины связываются
+   подчёркиванием прямо в тексте на других экранах. */
+.text-link {
   font-size: var(--f-body);
   color: var(--info);
-  text-decoration-style: solid;
+  text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--info) 45%, transparent);
+  text-underline-offset: 3px;
 }
 
 .nothing {
